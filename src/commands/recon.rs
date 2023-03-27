@@ -1,13 +1,15 @@
-use sysinfo::{System, SystemExt, UserExt, CpuExt, ProcessExt, Pid};
+use sysinfo::{CpuExt, Pid, ProcessExt, System, SystemExt, UserExt};
 use whoami::*;
-
 
 pub fn whoami() -> String {
     // Get system information
     let mut sys = System::new_all();
     sys.refresh_all();
 
-    let kernel_version = format!(" - Kernel Version: ({})", sys.kernel_version().unwrap_or_default());
+    let kernel_version = format!(
+        " - Kernel Version: ({})",
+        sys.kernel_version().unwrap_or_default()
+    );
     let user = format!(r#"\{} ({})"#, username(), realname());
 
     let mut cpu_info = String::new();
@@ -27,7 +29,6 @@ pub fn whoami() -> String {
 }
 
 pub fn userlist() -> String {
-
     struct User {
         username: String,
         id: String,
@@ -39,7 +40,6 @@ pub fn userlist() -> String {
             format!(
                 "```ini\n\
                 Username: [{}], ID: [{}], Groups: [{}]```",
-
                 self.username,
                 self.id,
                 self.groups.join(", ")
@@ -64,10 +64,7 @@ pub fn userlist() -> String {
         .map(|u| u.to_string())
         .collect::<Vec<String>>()
         .join("")
-
 }
-
-
 
 pub fn tasklist() -> String {
     struct Task {
@@ -97,7 +94,6 @@ pub fn tasklist() -> String {
     let mut task_structs = Vec::new();
 
     for (pid, process) in sys.processes() {
-
         let user_name = if let Some(user_id) = process.user_id() {
             if let Some(user) = sys.get_user_by_id(user_id) {
                 Some(user.name().to_string())
