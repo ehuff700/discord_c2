@@ -72,12 +72,29 @@ pub async fn handle_command(ctx: &Context, message: &Message) -> Result<(), Erro
     let shell = ProcessHandler::instance(&shell_type).await?;
 
     println!("Command: {:?}", message.content);
-    if message.content != "exit" {
 
-        let output = shell.run_command(&message.content).await?;
-        println!("Output: {}", output);
+    if !message.author.bot {
+        if message.content == "exit" {
+            shell.exit().await?;
+            if let Err(why) = message.channel_id.say(&ctx.http, "Successfully exited session. Use /exit to close the channel.").await {
+                println!("Error sending message: {:?}", why);
+            }
+
+        } else {
+            let output = shell.run_command(&message.content).await?;
+            let mut formatted = String::new();
+
+            if shell.shell_type == "powershell.exe" {
+                formatted = format!("```powershell\n{}```", output);
+            } else {
+                formatted = format!("```cmd\n{}```", output);
+            }
+
+            if let Err(why) = message.channel_id.say(&ctx.http, &formatted).await {
+                println!("Error sending message: {:?}", why);
+            }
+        }
     }
-
 
     Ok(())
 }
