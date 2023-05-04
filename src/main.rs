@@ -22,6 +22,7 @@ use serenity::{
     },
     prelude::*,
 };
+use serenity::model::channel::Message;
 
 const GUILD_ID: GuildId = GuildId(1086423448454180905);
 static TOKEN: &str = "MTA4NzQ2MzExMjY3ODA1NTkzNg.GTGs1y.Nj49dYvo8rSYUA1duIUgaC57UhbJs5fJyMKvhU";
@@ -46,10 +47,21 @@ async fn send_agent_check_in(ctx: &Context) -> Result<(), Error> {
     Ok(())
 }
 
-struct Handler;
+struct MainHandler;
 
 #[async_trait]
-impl EventHandler for Handler {
+impl EventHandler for MainHandler {
+
+    async fn message(&self, ctx: Context, msg: Message) {
+        let agent = get_or_create_agent(&ctx).await;
+
+        if let Some(channel) = agent.get_session_channel() {
+            if msg.channel_id == *channel {
+                handle_command(&ctx, &msg).await.expect("Failed to handle command");
+            }
+        }
+    }
+
     async fn ready(&self, ctx: Context, ready: Ready) {
         println!("{} is connected!", ready.user.name);
 
@@ -63,7 +75,6 @@ impl EventHandler for Handler {
 
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         if let Interaction::ApplicationCommand(command) = interaction {
-            println!("Received command interaction: {:#?}", command);
             handle_command_interaction(&ctx, command).await;
         }
     }
@@ -140,8 +151,13 @@ async fn handle_error(ctx: &Context, command: &ApplicationCommandInteraction, co
 
 #[tokio::main]
 async fn main() {
-    let mut client = Client::builder(TOKEN, GatewayIntents::default())
-        .event_handler(Handler)
+
+    let intents = GatewayIntents::GUILD_MESSAGES
+        | GatewayIntents::MESSAGE_CONTENT
+        | GatewayIntents::GUILDS;
+    
+    let mut client = Client::builder(TOKEN, intents)
+        .event_handler(MainHandler)
         .await
         .expect("Failed to create the client");
 

