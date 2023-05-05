@@ -13,6 +13,7 @@ pub enum DiscordC2Error {
     DiscordError(String),
     NoSessionChannel,
     CommandNotFound(String),
+    InvalidShellType
 }
 
 impl fmt::Display for DiscordC2Error {
@@ -30,6 +31,9 @@ impl fmt::Display for DiscordC2Error {
             }
             DiscordC2Error::CommandNotFound(s) => {
                 write!(f, "Command {} wasn't found, that's a problem", s)
+            }
+            DiscordC2Error::InvalidShellType => {
+                write!(f, "Invalid shell type was provided.")
             }
         }
     }

