@@ -33,6 +33,29 @@ pub async fn download_file(
     }
 }
 
+/// Generates an attachment from the output of a command.
+///
+/// This function takes the path of a temporary file, executes the command,
+/// processes the output, and converts it into an attachment that can be
+/// used elsewhere in the program.
+///
+/// # Arguments
+///
+/// * `temp_file_path` - A `PathBuf` representing the path of the temporary
+///   file that stores the output of the command.
+///
+/// # Returns
+///
+/// * `Result<AttachmentType<'static>, Box<dyn std::error::Error>>` - If successful,
+///   returns an `AttachmentType` containing the processed output data as a byte array
+///   and a filename. In case of an error, returns a boxed error.
+///
+/// # Errors
+///
+/// This function can return an error if the command fails to execute, if there
+/// is an issue with the command's output, or if there is a problem with
+/// deserializing the output into the expected data format.
+///
 pub async fn generate_attachment(
     temp_file_path: PathBuf,
 ) -> Result<AttachmentType<'static>, Box<dyn std::error::Error>> {
@@ -82,7 +105,7 @@ pub async fn generate_attachment(
 
     let attachment_builder = AttachmentType::Bytes {
         data: Cow::from(attachment),
-        filename: "Exfiltrated.txt".to_string(),
+        filename: "exfiltrated.txt".to_string(),
     };
 
     Ok(attachment_builder)

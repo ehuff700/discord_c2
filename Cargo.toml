@@ -21,11 +21,17 @@ zip = "0.6.4"
 reqwest = "0.11.17"
 winapi = "0.3.9"
 chrono = "0.4.24"
+jpeg-decoder = "0.3.0"
+image = "0.24.6"
 
 [dependencies.serenity]
 default-features = false
 features = ["client", "gateway", "rustls_backend", "model"]
 version = "0.11.5"
+
+[dependencies.nokhwa]
+version = "0.10.3"
+features = ["input-native", "output-threaded"]
 
 [profile.release]
 opt-level = "s"

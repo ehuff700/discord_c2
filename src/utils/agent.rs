@@ -84,10 +84,6 @@ impl Agent {
         &self.command_channel
     }
 
-    pub fn get_hostname_user(&self) -> &str {
-        &self.hostname_user
-    }
-
     pub fn get_ip_address(&self) -> &str {
         &self.ip_address
     }
@@ -98,32 +94,6 @@ impl Agent {
     /* Getters */
 
     /* Setters */
-    pub fn set_category_channel(
-        &mut self,
-        category_channel: ChannelId,
-    ) -> Result<(), DiscordC2Error> {
-        self.category_channel = category_channel;
-        self.write()
-    }
-
-    pub fn set_command_channel(
-        &mut self,
-        command_channel: ChannelId,
-    ) -> Result<(), DiscordC2Error> {
-        self.command_channel = command_channel;
-        self.write()
-    }
-
-    pub fn set_hostname_user(&mut self, hostname_user: String) -> Result<(), DiscordC2Error> {
-        self.hostname_user = hostname_user;
-        self.write()
-    }
-
-    pub fn set_ip_address(&mut self, ip_address: String) -> Result<(), DiscordC2Error> {
-        self.ip_address = ip_address;
-        self.write()
-    }
-
     pub fn set_session_channel(
         &mut self,
         session_channel: Option<ChannelId>,
@@ -131,7 +101,6 @@ impl Agent {
         self.session_channel = session_channel;
         self.write()
     }
-
     /* Setters */
 }
 
