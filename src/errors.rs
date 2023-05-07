@@ -71,4 +71,12 @@ impl From <Box<dyn StdError>> for DiscordC2Error {
         DiscordC2Error::StdError(error.to_string())
     }
 }
+
+impl From<anyhow::Error> for DiscordC2Error {
+    fn from(error: anyhow::Error) -> Self {
+        match error.anyhow_kind() {
+            _ => DiscordC2Error::DiscordError(error.to_string()),
+        }
+    }
+}
 impl Error for DiscordC2Error {}

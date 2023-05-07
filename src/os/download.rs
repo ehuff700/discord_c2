@@ -9,7 +9,35 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use zip::ZipArchive;
 
-pub async fn download_file(
+/// Downloads a file from the specified URL and saves it to the specified file path on the local
+/// filesystem. The downloaded file must be in ZIP format, and the function extracts the contents
+/// of the file and saves them to the specified path. Returns `Ok(())` if the file was downloaded
+/// and extracted successfully, or a boxed error if an error occurred during the process.
+///
+/// # Arguments
+///
+/// * `url` - The URL of the file to download.
+/// * `filename` - The name of the file to extract from the ZIP archive.
+/// * `temp_file_path` - The path where the extracted file should be saved on the local filesystem.
+///
+/// # Examples
+///
+/// ```no_run
+/// use std::path::PathBuf;
+/// use tokio::fs::File;
+///
+/// let url = "https://example.com/myfile.zip";
+/// let filename = "myfile.txt";
+/// let temp_file_path = PathBuf::from("downloads/myfile.txt");
+///
+/// async fn download_file() -> Result<(), Box<dyn std::error::Error>> {
+///     download_browser_module(url, filename, &temp_file_path).await?;
+///     let mut file = File::open(&temp_file_path).await?;
+///     // Do something with the downloaded file
+///     Ok(())
+/// }
+/// ```
+pub async fn download_browser_module(
     url: &str,
     filename: &str,
     temp_file_path: &PathBuf,
