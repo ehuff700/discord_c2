@@ -2,7 +2,10 @@ use serenity::client::Context;
 
 pub mod exit;
 pub mod session;
+pub mod download;
+pub mod upload;
 
+// Helper function to pull the command ID from a command name
 async fn get_command_id_by_name(ctx: &Context, command_name: &str) -> Option<u64> {
     // Get the list of global application commands
     let commands = ctx.http.get_global_application_commands().await.ok()?;

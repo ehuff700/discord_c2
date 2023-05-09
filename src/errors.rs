@@ -7,7 +7,7 @@ use serde::de::StdError;
 
 #[derive(Debug)]
 pub enum DiscordC2Error {
-    NotFound,
+    NotFound(String),
     PermissionDenied(String),
     ConfigError(String),
     AgentError(String),
@@ -17,12 +17,13 @@ pub enum DiscordC2Error {
     InvalidShellType,
     StdError(String),
     InvalidInput(String),
+    RegexError(String),
 }
 
 impl fmt::Display for DiscordC2Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            DiscordC2Error::NotFound => write!(f, "Not found"),
+            DiscordC2Error::NotFound(s) => write!(f, "{} was not found", s),
             DiscordC2Error::PermissionDenied(s) => {
                 write!(f, "Permission denied for reason: '{}'", s)
             }
@@ -42,6 +43,7 @@ impl fmt::Display for DiscordC2Error {
             DiscordC2Error::InvalidInput(s) => {
                 write!(f, "Invalid input was provided: {}", s)
             }
+            DiscordC2Error::RegexError(s) => write!(f, "Regex error: {}", s),
         }
     }
 }
@@ -49,7 +51,9 @@ impl fmt::Display for DiscordC2Error {
 impl From<std::io::Error> for DiscordC2Error {
     fn from(error: std::io::Error) -> Self {
         match error.kind() {
-            std::io::ErrorKind::NotFound => DiscordC2Error::NotFound,
+            std::io::ErrorKind::NotFound => {
+                DiscordC2Error::NotFound(error.to_string())
+            },
             std::io::ErrorKind::PermissionDenied => {
                 DiscordC2Error::PermissionDenied(error.to_string())
             }

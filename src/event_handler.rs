@@ -23,6 +23,7 @@ use serenity::{
     },
 };
 use anyhow::Error;
+use crate::commands::sessions::download::download_handler;
 
 pub struct MainHandler;
 
@@ -98,6 +99,12 @@ async fn handle_command_interaction(ctx: &Context, command: ApplicationCommandIn
         let content = match command.data.name.as_str() {
             "exit" => {
                 exit::run(&ctx).await.expect("TODO: panic message");
+                return;
+            }
+            "download-file" => {
+                if let Err(why) = download_handler(ctx, &command).await {
+                    handle_error(ctx, &command, why.to_string()).await
+                }
                 return;
             }
             _ => "That command is not supported for command sessions.".to_string(),
