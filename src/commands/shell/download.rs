@@ -1,16 +1,24 @@
-use std::borrow::Cow;
-use std::path::{Path, PathBuf};
-use serenity::builder::CreateApplicationCommand;
-use serenity::client::Context;
-use serenity::model::application::command::CommandOptionType;
-use serenity::model::application::interaction::application_command::{ApplicationCommandInteraction, CommandDataOption, CommandDataOptionValue};
-use serenity::model::application::interaction::InteractionResponseType;
-use serenity::model::channel::AttachmentType;
-use tokio::fs::File;
-use tokio::io::AsyncReadExt;
-use crate::commands::SHELL_TYPE;
-use crate::errors::DiscordC2Error;
-use crate::os::process_handler::ProcessHandler;
+use std::{
+    borrow::Cow,
+    path::{Path, PathBuf},
+};
+
+use serenity::{
+    builder::CreateApplicationCommand,
+    client::Context,
+    model::{application::{command::CommandOptionType, interaction::{application_command::{ApplicationCommandInteraction, CommandDataOption, CommandDataOptionValue}, InteractionResponseType}}, channel::AttachmentType}
+};
+
+use tokio::{
+    fs::File,
+    io::AsyncReadExt,
+};
+
+use crate::{
+    errors::DiscordC2Error,
+    os::process_handler::ProcessHandler,
+};
+
 
 pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
     command

