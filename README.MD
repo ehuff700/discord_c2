@@ -1,5 +1,5 @@
 # Known Bugs
-- [ ] exit command doesn't properly exit the command sessions for unknown reasons, likely because the `SHELL_TYPE` static reference is not properly nullified on exit?
+- [ ] exit command doesn't properly exit the command sessions for unknown reasons, (seems to only be for powershell?) likely because the `SHELL_TYPE` static reference is not properly nullified on exit?
 
 - [ ] stderr under `run_command` method in `process_handler.rs` is not properly displayed yet for sessions yet, code is almost ready and needs to be adjusted/adapted a little bit.
 

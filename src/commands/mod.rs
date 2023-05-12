@@ -82,7 +82,7 @@ async fn send_message(ctx: &Context, channel_id: ChannelId, output: &str, shell_
             if let Err(why) = channel_id.say(&ctx.http, &buffer).await {
                 println!("Error sending message: {:?}", why);
                 return Err(format!("Error sending message: {:?}", why));
-            }
+            } 
             buffer = fence.clone();
         }
         buffer.push_str(line);

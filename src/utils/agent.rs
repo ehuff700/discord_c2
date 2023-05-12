@@ -114,6 +114,7 @@ impl fmt::Display for Agent {
     }
 }
 
+#[cfg(windows)]
 // Helper method for getting the config file pointer
 fn get_config() -> Result<File, DiscordC2Error> {
     // Get all the config directory paths

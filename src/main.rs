@@ -5,11 +5,13 @@ mod utils;
 mod libraries;
 mod event_handler;
 
+use crate::{
+    utils::agent::*, commands::*, sessions::*,
+    event_handler::MainHandler
+};
 
-use crate::{utils::agent::*, commands::*, sessions::*};
 use serenity::{client::Context, prelude::GatewayIntents, Client, model::{application::command::Command, id::GuildId}};
 
-use crate::event_handler::MainHandler;
 use anyhow::Error;
 
 const GUILD_ID: GuildId = GuildId(1086423448454180905);

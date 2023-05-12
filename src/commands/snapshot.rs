@@ -5,6 +5,7 @@ use crate::{
 
 use chrono::Utc;
 use nokhwa::utils::CameraIndex;
+
 use serenity::{
     builder::CreateApplicationCommand,
     client::Context,
