@@ -37,8 +37,7 @@ pub fn run(channel_id: &ChannelId, agent: Agent) -> String {
 
         // Format the JSON string with indentation
         let formatted = serde_json::to_string_pretty(&data).unwrap();
-
-        format!("**Agent Info** \n```json\n{}\n```", formatted)
+        format!("Agent Info \n```json\n{}\n```", formatted)
     } else {
         " ".to_string()
     }

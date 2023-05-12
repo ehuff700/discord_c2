@@ -1,4 +1,4 @@
-use crate::commands::sessions::get_command_id_by_name;
+use crate::commands::shell::get_command_id_by_name;
 use crate::errors::DiscordC2Error;
 use crate::utils::agent::get_or_create_agent;
 

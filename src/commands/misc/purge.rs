@@ -75,7 +75,7 @@ pub async fn run(ctx: &Context, channel_id: &ChannelId) -> String {
 ///
 /// Returns a Result containing `()` on success, or a `DiscordC2Error` on failure.
 pub async fn purge_handler(ctx: &Context, command: &ApplicationCommandInteraction) -> Result<(), DiscordC2Error> {
-    let message_content = run(&ctx, &command.channel_id).await;
+    let message_content = run(ctx, &command.channel_id).await;
     ephemeral_interaction_create(ctx, command, &message_content).await?;
     Ok(())
 }

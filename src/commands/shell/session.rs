@@ -1,5 +1,5 @@
 use crate::{
-    commands::{sessions::exit, SHELL_TYPE},
+    commands::{shell::exit, SHELL_TYPE},
     errors::DiscordC2Error,
     event_handler::ephemeral_interaction_create,
     os::process_handler::{ProcessHandler, ShellType},
@@ -12,7 +12,7 @@ use serenity::{
     client::Context,
 };
 use chrono::Utc;
-use crate::commands::sessions::download;
+use crate::commands::shell::download;
 
 /// Registers the "session" application command with the provided `CreateApplicationCommand` builder. This command
 /// allows users to open an interactive command session with the agent, using either PowerShell or CMD.

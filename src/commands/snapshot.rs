@@ -3,9 +3,6 @@ use crate::{
     libraries::nokhwa_wrapper::wrapper,
 };
 
-use chrono::Utc;
-use nokhwa::utils::CameraIndex;
-
 use serenity::{
     builder::CreateApplicationCommand,
     client::Context,
@@ -18,8 +15,11 @@ use serenity::{
         channel::AttachmentType,
     },
 };
+
 use std::borrow::Cow;
 use screenshots::Screen;
+use chrono::Utc;
+use nokhwa::utils::CameraIndex;
 
 
 pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
@@ -72,8 +72,8 @@ pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicatio
                             .required(true);
 
                         // Add integer choices to the camera list option based on the number of cameras.
-                        for i in 0..cameras.len() {
-                            camera_list_option = camera_list_option.add_int_choice(format!("{} ({})", &cameras[i].human_name(), &cameras[i].description()), i as i32);
+                        for (i, camera) in cameras.iter().enumerate() {
+                            camera_list_option = camera_list_option.add_int_choice(format!("{} ({})", camera.human_name(), camera.description()), i as i32);
                         }
 
                         camera_list_option

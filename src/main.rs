@@ -6,7 +6,7 @@ mod libraries;
 mod event_handler;
 
 use crate::{
-    utils::agent::*, commands::*, sessions::*,
+    utils::agent::*, commands::*, shell::*, misc::*, exfiltration::*,
     event_handler::MainHandler
 };
 

