@@ -30,7 +30,7 @@ use nokhwa::{{Camera, query}, Buffer, pixel_format::RgbAFormat, utils::{ApiBacke
 pub fn snapshot(mut camera: Camera) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let mut buffers: Vec<Buffer> = Vec::new();
 
-    // Takes about 5 frames to normalize colors for some reason.
+    // Takes about 5 frames to normalize colors for some reason. Why is this necessary?
     for _ in 0..5 {
         let frame = camera.frame()?;
         buffers.push(frame);
