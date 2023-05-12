@@ -1,8 +1,10 @@
 use crate::errors::DiscordC2Error;
 use crate::GUILD_ID;
-use serenity::client::Context;
-use serenity::model::channel::ChannelType;
-use serenity::model::id::ChannelId;
+
+use serenity::{
+    client::Context,
+    model::{channel::ChannelType, id::ChannelId},
+};
 
 pub async fn create_category_channel(
     ctx: &Context,
@@ -51,7 +53,7 @@ pub async fn create_text_channel(
             c.name(name)
                 .kind(ChannelType::Text)
                 .category(category_id)
-                .topic(&topic)
+                .topic(topic)
         })
         .await
         .map_err(|err| DiscordC2Error::DiscordError(err.to_string()))?;

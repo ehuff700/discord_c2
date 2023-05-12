@@ -33,7 +33,7 @@ pub async fn handle_command(ctx: &Context, message: &Message) -> Result<(), Erro
                 if let Err(why) = message.channel_id.say(&ctx.http, "Stale or expired session. Closing...").await {
                     println!("Error sending message: {:?}", why);
                 }
-                exit::run(&ctx).await?;
+                exit::run(ctx).await?;
             }
             return Ok(());
         }

