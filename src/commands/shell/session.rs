@@ -119,7 +119,7 @@ pub async fn run(
     if shell_type.is_some() {
         match ProcessHandler::is_instantiated().await {
             true => {
-                warn!("The shell was already instantiated, what is bro doing?");
+                warn!("The shell {:?} was already instantiated, what is bro doing?", shell_type);
                 let agent = get_or_create_agent(ctx).await;
                 return Ok((
                     format!(

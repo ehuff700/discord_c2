@@ -28,7 +28,7 @@ features = ["input-native", "output-threaded"]
 
 [dependencies.serenity]
 default-features = false
-features = ["client", "gateway", "rustls_backend", "model"]
+features = ["client", "gateway", "rustls_backend", "model", "cache"]
 version = "0.11.5"
 
 [dependencies.serde]

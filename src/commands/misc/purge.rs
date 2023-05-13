@@ -1,4 +1,4 @@
-use crate::{errors::DiscordC2Error, discord_utils::bot_functions::send_ephemeral_response};
+use crate::{errors::DiscordC2Error, discord_utils::bot_functions::{send_ephemeral_response, send_channel_message}};
 
 use serenity::{
     builder::CreateApplicationCommand,
@@ -8,6 +8,8 @@ use serenity::{
     },
     prelude::*,
 };
+
+use tokio::task::spawn;
 
 /// Registers the purge command with the provided `CreateApplicationCommand`.
 ///
@@ -24,40 +26,49 @@ pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicatio
         .description("Delete all messages in the channel.")
 }
 
-/// Deletes all messages in the provided `ChannelId`.
+/// Runs the message purging process on the given channel.
+///
+/// This function asynchronously purges messages in the specified channel by continuously
+/// fetching and deleting messages until no more messages are returned.
+/// It returns a message indicating the result of the purging process.
 ///
 /// # Arguments
 ///
-/// * `ctx` - A reference to the `Context`.
-/// * `channel_id` - A reference to the `ChannelId` of the channel to be purged.
+/// * `ctx` - The Serenity context.
+/// * `channel_id` - The ID of the channel to purge messages from.
 ///
 /// # Returns
 ///
-/// A `String` indicating whether the purge was successful or if there was an error.
-///
-/// # Errors
-///
-/// Returns an error if there was a problem fetching or deleting messages.
-///
-/// # Notes
-///
-/// This method may not work correctly in all circumstances and should be optimized in the future.
+/// A `String` indicating the result of the purging process.
 pub async fn run(ctx: &Context, channel_id: &ChannelId) -> String {
-    loop {
-        let messages = match channel_id
-            .messages(&ctx.http, |retriever| retriever.limit(100))
-            .await
-        {
-            Ok(messages) if messages.is_empty() => break,
-            Ok(messages) => messages,
-            Err(e) => return format!("Error fetching messages: {:?}", e),
-        };
 
-        let message_ids: Vec<MessageId> = messages.iter().map(|msg| msg.id).collect();
-        if let Err(e) = channel_id.delete_messages(&ctx.http, &message_ids).await {
-            return format!("Error deleting messages: {:?}", e);
+    // Clone `ctx` and `channel_id`
+    let cloned_ctx = ctx.clone();
+    let cloned_channel_id = *channel_id;
+
+    // Spawn a new task (not a thread)
+    spawn(async move {
+        loop {
+            // Your async code goes here
+            let messages = match cloned_channel_id
+                .messages(&cloned_ctx.http, |retriever| retriever.limit(100))
+                .await
+            {
+                Ok(messages) if messages.is_empty() => break,
+                Ok(messages) => messages,
+                Err(e) => {
+                    send_channel_message(&cloned_ctx, cloned_channel_id, format!("Ran into an error when fetching messages: {}", e)).await.unwrap_or_default();
+                    return
+                },
+            };
+
+            let message_ids: Vec<MessageId> = messages.iter().map(|msg| msg.id).collect();
+            if let Err(e) = cloned_channel_id.delete_messages(&cloned_ctx.http, &message_ids).await {
+                send_channel_message(&cloned_ctx, cloned_channel_id, format!("Ran into an error when attempting to delete messages: {}", e)).await.unwrap_or_default();
+                return;
+            }
         }
-    }
+    });
 
     "Messages have successfully been purged".to_string()
 }
