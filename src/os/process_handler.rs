@@ -154,7 +154,7 @@ pub struct ProcessHandler {
 
 //TODO: massive cleanup needs to be done here
 impl ProcessHandler {
-    
+
     /// Returns true if the PROCESS_HANDLER static is instantiated (is some). False if otherwise.
     pub async fn is_instantiated() -> bool {
         let process_handler = PROCESS_HANDLER.lock().await;

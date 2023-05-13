@@ -35,7 +35,10 @@ impl EventHandler for MainHandler {
         let agent = get_or_create_agent(&ctx).await;
         if let Some(channel) = agent.get_session_channel() {
             if msg.channel_id == *channel {
-                informational!("Recieved message: {}", msg.content);
+                if !msg.author.bot {
+                    informational!("Recieved message: {}", msg.content);
+                }
+
                 command_handler(&ctx, &msg)
                     .await
                     .expect("Failed to handle command");
