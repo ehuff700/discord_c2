@@ -1,5 +1,4 @@
-use crate::errors::DiscordC2Error;
-use crate::event_handler::ephemeral_interaction_create;
+use crate::{errors::DiscordC2Error, discord_utils::bot_functions::send_ephemeral_response};
 
 use serenity::{
     builder::CreateApplicationCommand,
@@ -76,6 +75,6 @@ pub async fn run(ctx: &Context, channel_id: &ChannelId) -> String {
 /// Returns a Result containing `()` on success, or a `DiscordC2Error` on failure.
 pub async fn purge_handler(ctx: &Context, command: &ApplicationCommandInteraction) -> Result<(), DiscordC2Error> {
     let message_content = run(ctx, &command.channel_id).await;
-    ephemeral_interaction_create(ctx, command, &message_content).await?;
+    send_ephemeral_response(ctx, command, &message_content).await?;
     Ok(())
 }

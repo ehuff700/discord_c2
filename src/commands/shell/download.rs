@@ -1,3 +1,9 @@
+use crate::{
+    errors::DiscordC2Error,
+    os::process_handler::ProcessHandler,
+    session::SHELL_TYPE,
+};
+
 use std::{
     borrow::Cow,
     path::{Path, PathBuf},
@@ -14,10 +20,7 @@ use tokio::{
     io::AsyncReadExt,
 };
 
-use crate::{
-    errors::DiscordC2Error,
-    os::process_handler::ProcessHandler,
-};
+
 
 
 pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {

