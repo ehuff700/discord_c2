@@ -20,6 +20,7 @@ pub enum DiscordC2Error {
     InvalidInput(String),
     RegexError(String),
     LibraryError(String),
+    VarError(String),
 }
 
 impl fmt::Display for DiscordC2Error {
@@ -47,6 +48,7 @@ impl fmt::Display for DiscordC2Error {
             }
             DiscordC2Error::RegexError(s) => write!(f, "REGEX_ERROR: {}", s),
             DiscordC2Error::LibraryError(s) => write!(f, "LIBRARY_ERROR: {}", s),
+            DiscordC2Error::VarError(s) => write!(f, "VAR_ERROR: {}", s),
         }
     }
 }

