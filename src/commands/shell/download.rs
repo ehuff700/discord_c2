@@ -121,6 +121,27 @@ async fn file_to_attachment(file_path: PathBuf) -> Result<AttachmentType<'static
     })
 }
 
+/// Handles the download command by sending an interaction response, downloading the file,
+/// and sending the file as a follow-up response.
+///
+/// # Arguments
+///
+/// * `ctx` - The Context of the command.
+/// * `command` - The ApplicationCommandInteraction representing the command.
+///
+/// # Returns
+///
+/// Returns `Ok(())` if the operation is successful, or an `Err(DiscordC2Error)` if there
+/// is an error during the process.
+///
+/// # Examples
+///
+/// ```
+/// let ctx = Context::new();
+/// let command = ApplicationCommandInteraction::new();
+/// let result = download_handler(&ctx, &command).await;
+/// assert!(result.is_ok());
+/// ```
 pub async fn download_handler(
     ctx: &Context,
     command: &ApplicationCommandInteraction,

