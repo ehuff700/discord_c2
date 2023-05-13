@@ -1,7 +1,11 @@
-
 use serenity::{
     client::Context,
-    model::prelude::{ChannelId, interaction::{application_command::ApplicationCommandInteraction, InteractionResponseType}}
+    model::prelude::{
+        interaction::{
+            application_command::ApplicationCommandInteraction, InteractionResponseType,
+        },
+        ChannelId,
+    },
 };
 
 use crate::errors::DiscordC2Error;
@@ -36,8 +40,12 @@ use tracing::error;
 /// }
 /// # }
 /// ```
-pub async fn send_code_message<T: AsRef<str>>(ctx: &Context, channel_id: ChannelId, message: T, language_format: &str) -> Result<(), String> {
-
+pub async fn send_code_message<T: AsRef<str>>(
+    ctx: &Context,
+    channel_id: ChannelId,
+    message: T,
+    language_format: &str,
+) -> Result<(), String> {
     let output_chunks = message.as_ref().split('\n');
     let fence = format!("```{}\n", language_format);
     let fence_length = fence.len() + 3; // 3 for the closing fence
@@ -49,7 +57,7 @@ pub async fn send_code_message<T: AsRef<str>>(ctx: &Context, channel_id: Channel
             if let Err(why) = channel_id.say(&ctx.http, &buffer).await {
                 println!("Error sending message: {:?}", why);
                 return Err(format!("Error sending message: {:?}", why));
-            } 
+            }
             buffer = fence.clone();
         }
         buffer.push_str(line);
@@ -93,10 +101,14 @@ pub async fn send_code_message<T: AsRef<str>>(ctx: &Context, channel_id: Channel
 ///     }
 /// # }
 /// ```
-pub async fn send_channel_message<T: AsRef<str>>(ctx: &Context, channel_id: ChannelId, message: T) -> Result<(), DiscordC2Error> {
+pub async fn send_channel_message<T: AsRef<str>>(
+    ctx: &Context,
+    channel_id: ChannelId,
+    message: T,
+) -> Result<(), DiscordC2Error> {
     if let Err(why) = channel_id.say(&ctx.http, message.as_ref()).await {
         error!("Error sending message: {:?}", why);
-        return Err(DiscordC2Error::from(why))
+        return Err(DiscordC2Error::from(why));
     }
     Ok(())
 }
@@ -132,7 +144,6 @@ pub async fn send_ephemeral_response<T: AsRef<str>>(
     command: &ApplicationCommandInteraction,
     content: T,
 ) -> Result<ApplicationCommandInteraction, DiscordC2Error> {
-
     command
         .create_interaction_response(&ctx.http, |response| {
             response
@@ -143,5 +154,71 @@ pub async fn send_ephemeral_response<T: AsRef<str>>(
                 })
         })
         .await?;
+    Ok(command.to_owned())
+}
+
+/// Send a follow-up response to an application command interaction.
+///
+/// This asynchronous function creates a follow-up message for a given interaction.
+///
+/// # Arguments
+///
+/// * `ctx` - A reference to the context object.
+/// * `command` - A reference to the application command interaction object.
+/// * `content` - The content of the follow-up message.
+///
+/// # Returns
+///
+/// A result containing an application command interaction object, or a DiscordC2Error in case of failure.
+///
+/// # Example
+///
+/// ```rust
+/// let response = send_follow_up_response(&ctx, &command, "Follow up message content").await?;
+/// ```
+pub async fn send_follow_up_response<T: AsRef<str>>(
+    ctx: &Context,
+    command: &ApplicationCommandInteraction,
+    content: T,
+) -> Result<ApplicationCommandInteraction, DiscordC2Error> {
+    command
+        .create_followup_message(&ctx.http, |message| {
+            message.content(content.as_ref())
+        })
+        .await?;
+
+    Ok(command.to_owned())
+}
+
+/// Edit the original response to an application command interaction.
+///
+/// This asynchronous function edits the original response message for a given interaction.
+///
+/// # Arguments
+///
+/// * `ctx` - A reference to the context object.
+/// * `command` - A reference to the application command interaction object.
+/// * `content` - The new content to replace the original response message.
+///
+/// # Returns
+///
+/// A result containing an application command interaction object, or a DiscordC2Error in case of failure.
+///
+/// # Example
+///
+/// ```rust
+/// let response = send_edit_response(&ctx, &command, "New message content").await?;
+/// ```
+pub async fn send_edit_response<T: AsRef <str>>(
+    ctx: &Context,
+    command: &ApplicationCommandInteraction,
+    content: T,
+) -> Result<ApplicationCommandInteraction, DiscordC2Error> {
+    command
+        .edit_original_interaction_response(&ctx.http, |message| {
+            message.content(content.as_ref())
+        })
+        .await?;
+
     Ok(command.to_owned())
 }

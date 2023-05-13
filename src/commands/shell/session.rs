@@ -25,7 +25,7 @@ use anyhow::Error;
 use chrono::Utc;
 use lazy_static::lazy_static;
 use tokio::sync::Mutex;
-use tracing::{info as informational, warn};
+use tracing::{info as informational, warn, error};
 
 lazy_static! {
     pub static ref SHELL_TYPE: Mutex<Option<ShellType>> = Mutex::new(None);
@@ -160,8 +160,27 @@ pub async fn run(
         session_channel
     );
 
-    Command::create_global_application_command(&ctx.http, exit::register).await?; // Create the /exit command
-    Command::create_global_application_command(&ctx.http, download::register).await?;
+    let ctx1 = ctx.to_owned();
+    let ctx2 = ctx.to_owned();
+
+    tokio::try_join!(
+        tokio::spawn(async {
+            match Command::create_global_application_command(ctx1, exit::register).await {
+                Ok(_) => (),
+                Err(why) => {
+                    error!("Failed to register the exit command: {:?}", why);
+                },
+            }
+        }),
+        tokio::spawn(async {
+            match Command::create_global_application_command(ctx2, download::register).await {
+                Ok(_) => (),
+                Err(why) => {
+                    error!("Failed to register the download command: {:?}", why);
+                },
+            }
+        }),
+    )?;
 
     if let CommandDataOptionValue::String(shell_type) = option {
         let (content, shell) = match shell_type.as_str() {

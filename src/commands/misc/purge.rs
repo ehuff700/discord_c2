@@ -1,4 +1,4 @@
-use crate::{errors::DiscordC2Error, discord_utils::bot_functions::{send_ephemeral_response, send_channel_message}};
+use crate::{errors::DiscordC2Error, discord_utils::bot_functions::{send_ephemeral_response, send_edit_response}};
 
 use serenity::{
     builder::CreateApplicationCommand,
@@ -8,6 +8,7 @@ use serenity::{
     },
     prelude::*,
 };
+use tracing::error;
 
 /// Registers the purge command with the provided `CreateApplicationCommand`.
 ///
@@ -51,20 +52,33 @@ pub async fn run(ctx: Context, channel_id: ChannelId, command: ApplicationComman
                 Ok(messages) if messages.is_empty() => break,
                 Ok(messages) => messages,
                 Err(e) => {
-                    send_channel_message(&ctx, channel_id, format!("Ran into an error when fetching messages: {}", e)).await.unwrap_or_default();
+                    match send_edit_response(&ctx, &command, format!("Ran into an error when fetching messages: {}", e)).await {
+                        Ok(_) => return,
+                        Err(why) => {
+                            error!("Error sending edit response: {}. Original error: {}", why, e);
+                        }
+                    };
                     return
                 },
             };
 
             let message_ids: Vec<MessageId> = messages.iter().map(|msg| msg.id).collect();
             if let Err(e) = channel_id.delete_messages(&ctx.http, &message_ids).await {
-                send_channel_message(&ctx, channel_id, format!("Ran into an error when attempting to delete messages: {}", e)).await.unwrap_or_default();
-                return;
+                match send_edit_response(&ctx, &command, format!("Ran into an error when fetching messages: {}", e)).await {
+                    Ok(_) => return,
+                    Err(why) => {
+                        error!("Error sending edit response: {}. Original error: {}", why, e);
+                    }
+                };
             }
         }
-        command.edit_original_interaction_response(&ctx.http, |message|{
-            message.content("Messages successfully purged!")
-        }).await.unwrap();
+        match send_edit_response(&ctx, &command, "Messages successfully purged!").await {
+            Ok(_) => (),
+            Err(why) => {
+                error!("Error sending edit response: {}", why);
+            }
+        }
+
     });
 
     "Messages have successfully been purged".to_string()

@@ -1,5 +1,6 @@
 use anyhow::__private::kind::TraitKind;
 use serenity::prelude::SerenityError;
+use tokio::task::JoinError;
 use std::error::Error;
 use std::fmt;
 use std::fmt::Debug;
@@ -18,6 +19,7 @@ pub enum DiscordC2Error {
     StdError(String),
     InvalidInput(String),
     RegexError(String),
+    LibraryError(String),
 }
 
 impl fmt::Display for DiscordC2Error {
@@ -25,7 +27,7 @@ impl fmt::Display for DiscordC2Error {
         match self {
             DiscordC2Error::NotFound(s) => write!(f, "NOT_FOUND: {}", s),
             DiscordC2Error::PermissionDenied(s) => {
-                write!(f, "Permission denied for reason: '{}'", s)
+                write!(f, "PERMISSION_DENIED: '{}'", s)
             }
             DiscordC2Error::ConfigError(s) => write!(f, "CONFIG_ERROR: {}", s),
             DiscordC2Error::AgentError(s) => write!(f, "AGENT_ERROR: {}", s),
@@ -37,13 +39,14 @@ impl fmt::Display for DiscordC2Error {
                 write!(f, "Command {} wasn't found, that's a problem", s)
             }
             DiscordC2Error::InvalidShellType => {
-                write!(f, "Invalid shell type was provided.")
+                write!(f, "INVALID_SHELL_TYPE")
             }
             DiscordC2Error::StdError(s) => write!(f, "Ran into error processing camera feed: {}", s),
             DiscordC2Error::InvalidInput(s) => {
                 write!(f, "Invalid input was provided: {}", s)
             }
-            DiscordC2Error::RegexError(s) => write!(f, "Regex error: {}", s),
+            DiscordC2Error::RegexError(s) => write!(f, "REGEX_ERROR: {}", s),
+            DiscordC2Error::LibraryError(s) => write!(f, "LIBRARY_ERROR: {}", s),
         }
     }
 }
@@ -79,6 +82,14 @@ impl From<anyhow::Error> for DiscordC2Error {
     fn from(error: anyhow::Error) -> Self {
         error.anyhow_kind();
         DiscordC2Error::DiscordError(error.to_string())
+    }
+}
+
+impl From<JoinError> for DiscordC2Error {
+    fn from(error: JoinError) -> Self 
+    {
+        error.anyhow_kind();
+        DiscordC2Error::LibraryError(error.to_string())
     }
 }
 impl Error for DiscordC2Error {}
