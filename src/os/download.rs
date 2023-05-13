@@ -12,9 +12,6 @@ use std::{
 
 use zip::ZipArchive;
 
-#[cfg(windows)]
-use os::windows::process::CommandExt;
-
 /// Downloads a file from the specified URL and saves it to the specified file path on the local
 /// filesystem. The downloaded file must be in ZIP format, and the function extracts the contents
 /// of the file and saves them to the specified path. Returns `Ok(())` if the file was downloaded

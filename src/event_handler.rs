@@ -33,9 +33,9 @@ impl EventHandler for MainHandler {
     // This really only handles session messages
     async fn message(&self, ctx: Context, msg: Message) {
         let agent = get_or_create_agent(&ctx).await;
-
         if let Some(channel) = agent.get_session_channel() {
             if msg.channel_id == *channel {
+                informational!("Recieved message: {}", msg.content);
                 command_handler(&ctx, &msg)
                     .await
                     .expect("Failed to handle command");

