@@ -131,13 +131,17 @@ pub async fn send_ephemeral_response<T: AsRef<str>>(
     ctx: &Context,
     command: &ApplicationCommandInteraction,
     content: T,
-) -> Result<(), DiscordC2Error> {
+) -> Result<ApplicationCommandInteraction, DiscordC2Error> {
+
     command
         .create_interaction_response(&ctx.http, |response| {
             response
                 .kind(InteractionResponseType::ChannelMessageWithSource)
-                .interaction_response_data(|message| message.content(content.as_ref()).ephemeral(true))
+                .interaction_response_data(|message| {
+                    message.content(content.as_ref()).ephemeral(true);
+                    message
+                })
         })
         .await?;
-    Ok(())
+    Ok(command.to_owned())
 }

@@ -9,8 +9,6 @@ use serenity::{
     prelude::*,
 };
 
-use tokio::task::spawn;
-
 /// Registers the purge command with the provided `CreateApplicationCommand`.
 ///
 /// # Arguments
@@ -40,34 +38,33 @@ pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicatio
 /// # Returns
 ///
 /// A `String` indicating the result of the purging process.
-pub async fn run(ctx: &Context, channel_id: &ChannelId) -> String {
+pub async fn run(ctx: Context, channel_id: ChannelId, command: ApplicationCommandInteraction) -> String {
 
-    // Clone `ctx` and `channel_id`
-    let cloned_ctx = ctx.clone();
-    let cloned_channel_id = *channel_id;
-
-    // Spawn a new task (not a thread)
-    spawn(async move {
+    // Spawn a new task to loop over messages and delete them // TODO: Make this method better get rid of unwrap or def
+    tokio::spawn(async move {
         loop {
             // Your async code goes here
-            let messages = match cloned_channel_id
-                .messages(&cloned_ctx.http, |retriever| retriever.limit(100))
+            let messages = match channel_id
+                .messages(&ctx.http, |retriever| retriever.limit(30))
                 .await
             {
                 Ok(messages) if messages.is_empty() => break,
                 Ok(messages) => messages,
                 Err(e) => {
-                    send_channel_message(&cloned_ctx, cloned_channel_id, format!("Ran into an error when fetching messages: {}", e)).await.unwrap_or_default();
+                    send_channel_message(&ctx, channel_id, format!("Ran into an error when fetching messages: {}", e)).await.unwrap_or_default();
                     return
                 },
             };
 
             let message_ids: Vec<MessageId> = messages.iter().map(|msg| msg.id).collect();
-            if let Err(e) = cloned_channel_id.delete_messages(&cloned_ctx.http, &message_ids).await {
-                send_channel_message(&cloned_ctx, cloned_channel_id, format!("Ran into an error when attempting to delete messages: {}", e)).await.unwrap_or_default();
+            if let Err(e) = channel_id.delete_messages(&ctx.http, &message_ids).await {
+                send_channel_message(&ctx, channel_id, format!("Ran into an error when attempting to delete messages: {}", e)).await.unwrap_or_default();
                 return;
             }
         }
+        command.edit_original_interaction_response(&ctx.http, |message|{
+            message.content("Messages successfully purged!")
+        }).await.unwrap();
     });
 
     "Messages have successfully been purged".to_string()
@@ -85,7 +82,8 @@ pub async fn run(ctx: &Context, channel_id: &ChannelId) -> String {
 ///
 /// Returns a Result containing `()` on success, or a `DiscordC2Error` on failure.
 pub async fn purge_handler(ctx: &Context, command: &ApplicationCommandInteraction) -> Result<(), DiscordC2Error> {
-    let message_content = run(ctx, &command.channel_id).await;
-    send_ephemeral_response(ctx, command, &message_content).await?;
+    let message = send_ephemeral_response(ctx, command, "Purging....").await?;
+    run(ctx.to_owned(), command.channel_id, message).await; 
+    
     Ok(())
 }
