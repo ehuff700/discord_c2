@@ -36,9 +36,9 @@ use tracing::error;
 /// }
 /// # }
 /// ```
-pub async fn send_code_message(ctx: &Context, channel_id: ChannelId, message: &str, language_format: &str) -> Result<(), String> {
+pub async fn send_code_message<T: AsRef<str>>(ctx: &Context, channel_id: ChannelId, message: T, language_format: &str) -> Result<(), String> {
 
-    let output_chunks = message.split('\n');
+    let output_chunks = message.as_ref().split('\n');
     let fence = format!("```{}\n", language_format);
     let fence_length = fence.len() + 3; // 3 for the closing fence
     let mut buffer = fence.clone();
@@ -93,8 +93,8 @@ pub async fn send_code_message(ctx: &Context, channel_id: ChannelId, message: &s
 ///     }
 /// # }
 /// ```
-pub async fn send_channel_message(ctx: &Context, channel_id: ChannelId, message: &str) -> Result<(), DiscordC2Error> {
-    if let Err(why) = channel_id.say(&ctx.http, message).await {
+pub async fn send_channel_message<T: AsRef<str>>(ctx: &Context, channel_id: ChannelId, message: T) -> Result<(), DiscordC2Error> {
+    if let Err(why) = channel_id.say(&ctx.http, message.as_ref()).await {
         error!("Error sending message: {:?}", why);
         return Err(DiscordC2Error::from(why))
     }
@@ -127,16 +127,16 @@ pub async fn send_channel_message(ctx: &Context, channel_id: ChannelId, message:
 ///     Ok(())
 /// }
 /// ```
-pub async fn send_ephemeral_response(
+pub async fn send_ephemeral_response<T: AsRef<str>>(
     ctx: &Context,
     command: &ApplicationCommandInteraction,
-    content: &str,
+    content: T,
 ) -> Result<(), DiscordC2Error> {
     command
         .create_interaction_response(&ctx.http, |response| {
             response
                 .kind(InteractionResponseType::ChannelMessageWithSource)
-                .interaction_response_data(|message| message.content(content).ephemeral(true))
+                .interaction_response_data(|message| message.content(content.as_ref()).ephemeral(true))
         })
         .await?;
     Ok(())

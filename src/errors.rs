@@ -23,13 +23,13 @@ pub enum DiscordC2Error {
 impl fmt::Display for DiscordC2Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            DiscordC2Error::NotFound(s) => write!(f, "{} was not found", s),
+            DiscordC2Error::NotFound(s) => write!(f, "NOT_FOUND: {}", s),
             DiscordC2Error::PermissionDenied(s) => {
                 write!(f, "Permission denied for reason: '{}'", s)
             }
-            DiscordC2Error::ConfigError(s) => write!(f, "Config error {}", s),
-            DiscordC2Error::AgentError(s) => write!(f, "Agent error {}", s),
-            DiscordC2Error::DiscordError(s) => write!(f, "Discord error {}", s),
+            DiscordC2Error::ConfigError(s) => write!(f, "CONFIG_ERROR: {}", s),
+            DiscordC2Error::AgentError(s) => write!(f, "AGENT_ERROR: {}", s),
+            DiscordC2Error::DiscordError(s) => write!(f, "DISCORD_ERROR: {}", s),
             DiscordC2Error::NoSessionChannel => {
                 write!(f, "No session channel was found (that's a problem)")
             }

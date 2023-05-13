@@ -48,7 +48,7 @@ impl Agent {
     pub fn load() -> Result<Agent, DiscordC2Error> {
         // Load the file or throw an error
         let mut file = get_config()?;
-
+        
         // Read the contents of the file
         let mut config_data = String::new();
         file.read_to_string(&mut config_data).map_err(|err| {
@@ -135,7 +135,9 @@ fn get_config() -> Result<File, DiscordC2Error> {
         .write(true)
         .create(true)
         .open(file_path)
-        .map_err( DiscordC2Error::from)?;
+        .map_err( |err| {
+            DiscordC2Error::ConfigError(err.to_string())
+        })?;
 
     Ok(file)
 }

