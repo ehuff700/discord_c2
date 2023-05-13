@@ -4,7 +4,7 @@ use serenity::{
         interaction::{
             application_command::ApplicationCommandInteraction, InteractionResponseType,
         },
-        ChannelId,
+        ChannelId, AttachmentType,
     },
 };
 
@@ -150,6 +150,33 @@ pub async fn send_ephemeral_response<T: AsRef<str>>(
                 .kind(InteractionResponseType::ChannelMessageWithSource)
                 .interaction_response_data(|message| {
                     message.content(content.as_ref()).ephemeral(true);
+                    message
+                })
+        })
+        .await?;
+    Ok(command.to_owned())
+}
+
+pub async fn send_interaction_response<'a, T>(
+    ctx: &'a Context,
+    command: &'a ApplicationCommandInteraction,
+    content: T,
+    attachment: Option<AttachmentType<'static>>,
+) -> Result<ApplicationCommandInteraction, DiscordC2Error>
+where
+    T: AsRef<str> + 'a,
+{
+    command
+        .create_interaction_response(&ctx.http, |response| {
+            response
+                .kind(InteractionResponseType::ChannelMessageWithSource)
+                .interaction_response_data(|message| {
+                    message.content(content.as_ref());
+
+                    if let Some(attachment) = attachment {
+                        message.add_file(attachment);
+                    };
+
                     message
                 })
         })

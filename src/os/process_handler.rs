@@ -13,6 +13,7 @@ use tokio::{
 };
 
 use lazy_static::lazy_static;
+
 #[cfg(target_os = "windows")]
 use regex::Regex;
 use tracing::{info, warn, error};
@@ -424,6 +425,7 @@ impl ProcessHandler {
         let regex = match self.shell_type {
             ShellType::Powershell => Regex::new(r"\(Get-Location\)\.Path\n(\S+)"),
             ShellType::Cmd => Regex::new(r"cd\s\n(\S+)"),
+            _ => return Err(DiscordC2Error::InvalidShellType),
         }
         .map_err(|e| DiscordC2Error::RegexError(e.to_string()))?;
 

