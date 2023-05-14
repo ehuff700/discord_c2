@@ -27,7 +27,7 @@ use serenity::{
 };
 
 use tracing::{error, info as informational};
-use crate::commands::recon::recon::recon_handler;
+use crate::commands::reconnaissance::recon::recon_handler;
 
 pub struct MainHandler;
 
@@ -61,10 +61,14 @@ impl EventHandler for MainHandler {
 
     async fn ready(&self, ctx: Context, ready: Ready) {
         informational!("{} is connected!", ready.user.name);
+        let ctx_clone = ctx.clone();
 
-        register_commands(&ctx)
+        tokio::spawn(async move {
+            register_commands(&ctx_clone)
             .await
             .unwrap_or_else(|e| error!("Failed to register commands: {:?}", e));
+        });
+     
         send_agent_check_in(&ctx)
             .await
             .unwrap_or_else(|e| error!("Error sending message: {:?}", e));

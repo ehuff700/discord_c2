@@ -204,6 +204,7 @@ pub async fn send_interaction_response<'a, T>(
 where
     T: AsRef<str> + 'a,
 {
+    
     command
         .create_interaction_response(&ctx.http, |response| {
             response
