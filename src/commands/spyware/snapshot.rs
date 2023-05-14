@@ -19,6 +19,10 @@ use screenshots::Screen;
 use std::borrow::Cow;
 use tracing::error;
 
+/// Creates a screen sub-option, given a mutable reference to a CreateApplicationCommandOption.
+/// ### Returns
+/// A mutable reference to a CreateApplicationCommandOption
+#[cfg(target_os = "windows")]
 fn create_screen_option(
     sub_command: &mut CreateApplicationCommandOption,
 ) -> &mut CreateApplicationCommandOption {
@@ -43,6 +47,9 @@ fn create_screen_option(
     screen_option
 }
 
+/// Creates a camera sub-option, given a mutable reference to a CreateApplicationCommandOption, and a Vec of CameraInfo
+/// ### Returns
+/// A mutable reference to a CreateApplicationCommandOption
 fn create_camera_option(
     sub_command: &mut CreateApplicationCommandOption,
     cameras: Vec<CameraInfo>,
