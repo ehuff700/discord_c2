@@ -177,25 +177,23 @@ pub async fn run(
     let ctx2 = ctx.to_owned();
 
     tokio::spawn(async {
-            if let Err(why) = Command::create_global_application_command(ctx1, exit::register).await
-            {
-                error!("Failed to register the exit command: {:?}", why);
-                return;
-            }
+        if let Err(why) = Command::create_global_application_command(ctx1, exit::register).await {
+            error!("Failed to register the exit command: {:?}", why);
+            return;
+        }
 
-            informational!("Successfully registered exit command.");
-        });
+        informational!("Successfully registered exit command.");
+    });
 
     tokio::spawn(async {
-            if let Err(why) =
-                Command::create_global_application_command(ctx2, download::register).await
-            {
-                error!("Failed to register the download command: {:?}", why);
-                return;
-            }
+        if let Err(why) = Command::create_global_application_command(ctx2, download::register).await
+        {
+            error!("Failed to register the download command: {:?}", why);
+            return;
+        }
 
-            informational!("Successfully registered download command.");
-        });
+        informational!("Successfully registered download command.");
+    });
 
     // Create a channel for the remote session, and set the name/topic appropriately
     let session_channel = create_text_channel(

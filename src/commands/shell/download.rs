@@ -175,7 +175,6 @@ pub async fn download_handler(
                 }
                 informational!("Succesfully exfiltrated the file.");
             });
-           
         }
         Err(reason) => {
             error!("Failed to exfiltrate the file: {}", reason);

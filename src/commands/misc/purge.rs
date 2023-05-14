@@ -47,7 +47,7 @@ pub async fn run(
     channel_id: ChannelId,
     command: ApplicationCommandInteraction,
 ) -> String {
-    // Spawn a new task to loop over messages and delete them // TODO: Make this method better get rid of unwrap or def
+    // Spawn a new task to loop over messages and delete them
     tokio::spawn(async move {
         loop {
             // Your async code goes here

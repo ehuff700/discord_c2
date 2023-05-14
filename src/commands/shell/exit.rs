@@ -1,6 +1,6 @@
+use crate::commands::shell::get_command_id_by_name;
 use crate::errors::DiscordC2Error;
 use crate::utils::agent::get_or_create_agent;
-use crate::{commands::shell::get_command_id_by_name};
 
 use serenity::{
     builder::CreateApplicationCommand,
@@ -33,7 +33,9 @@ pub async fn run(ctx: &Context) -> Result<String, DiscordC2Error> {
     Command::delete_global_application_command(&ctx.http, CommandId::from(command_id)).await?;
     Command::delete_global_application_command(&ctx.http, CommandId::from(download_id)).await?;
 
-    agent.set_session_channel(None).map_err(|e| DiscordC2Error::AgentError(e.to_string()))?;
+    agent
+        .set_session_channel(None)
+        .map_err(|e| DiscordC2Error::AgentError(e.to_string()))?;
 
     Ok(String::new())
 }
