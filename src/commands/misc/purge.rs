@@ -1,17 +1,17 @@
-use crate::{
-    discord_utils::bot_functions::{send_edit_response, send_ephemeral_response},
-    errors::DiscordC2Error,
-};
-
 use serenity::{
-    builder::CreateApplicationCommand,
-    model::{
-        application::interaction::application_command::ApplicationCommandInteraction,
-        id::{ChannelId, MessageId},
-    },
-    prelude::*,
+	builder::CreateApplicationCommand,
+	model::{
+		application::interaction::application_command::ApplicationCommandInteraction,
+		id::{ChannelId, MessageId},
+	},
+	prelude::*,
 };
 use tracing::error;
+
+use crate::{
+	discord_utils::bot_functions::{send_edit_response, send_ephemeral_response},
+	errors::DiscordC2Error,
+};
 
 /// Registers the purge command with the provided `CreateApplicationCommand`.
 ///
@@ -23,9 +23,9 @@ use tracing::error;
 ///
 /// A mutable reference to the `CreateApplicationCommand` object, for chaining.
 pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
-    command
-        .name("purge")
-        .description("Delete all messages in the channel.")
+	command
+		.name("purge")
+		.description("Delete all messages in the channel.")
 }
 
 /// Runs the message purging process on the given channel.
@@ -43,68 +43,68 @@ pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicatio
 ///
 /// A `String` indicating the result of the purging process.
 pub async fn run(
-    ctx: Context,
-    channel_id: ChannelId,
-    command: ApplicationCommandInteraction,
+	ctx: Context,
+	channel_id: ChannelId,
+	command: ApplicationCommandInteraction,
 ) -> String {
-    // Spawn a new task to loop over messages and delete them
-    tokio::spawn(async move {
-        loop {
-            // Your async code goes here
-            let messages = match channel_id
-                .messages(&ctx.http, |retriever| retriever.limit(30))
-                .await
-            {
-                Ok(messages) if messages.is_empty() => break,
-                Ok(messages) => messages,
-                Err(e) => {
-                    match send_edit_response(
-                        &ctx,
-                        &command,
-                        format!("Ran into an error when fetching messages: {}", e),
-                    )
-                    .await
-                    {
-                        Ok(_) => return,
-                        Err(why) => {
-                            error!(
-                                "Error sending edit response: {}. Original error: {}",
-                                why, e
-                            );
-                        }
-                    };
-                    return;
-                }
-            };
+	// Spawn a new task to loop over messages and delete them
+	tokio::spawn(async move {
+		loop {
+			// Your async code goes here
+			let messages = match channel_id
+				.messages(&ctx.http, |retriever| retriever.limit(30))
+				.await
+			{
+				Ok(messages) if messages.is_empty() => break,
+				Ok(messages) => messages,
+				Err(e) => {
+					match send_edit_response(
+						&ctx,
+						&command,
+						format!("Ran into an error when fetching messages: {}", e),
+					)
+					.await
+					{
+						Ok(_) => return,
+						Err(why) => {
+							error!(
+								"Error sending edit response: {}. Original error: {}",
+								why, e
+							);
+						},
+					};
+					return;
+				},
+			};
 
-            let message_ids: Vec<MessageId> = messages.iter().map(|msg| msg.id).collect();
-            if let Err(e) = channel_id.delete_messages(&ctx.http, &message_ids).await {
-                match send_edit_response(
-                    &ctx,
-                    &command,
-                    format!("Ran into an error when fetching messages: {}", e),
-                )
-                .await
-                {
-                    Ok(_) => return,
-                    Err(why) => {
-                        error!(
-                            "Error sending edit response: {}. Original error: {}",
-                            why, e
-                        );
-                    }
-                };
-            }
-        }
-        match send_edit_response(&ctx, &command, "Messages successfully purged!").await {
-            Ok(_) => (),
-            Err(why) => {
-                error!("Error sending edit response: {}", why);
-            }
-        }
-    });
+			let message_ids: Vec<MessageId> = messages.iter().map(|msg| msg.id).collect();
+			if let Err(e) = channel_id.delete_messages(&ctx.http, &message_ids).await {
+				match send_edit_response(
+					&ctx,
+					&command,
+					format!("Ran into an error when fetching messages: {}", e),
+				)
+				.await
+				{
+					Ok(_) => return,
+					Err(why) => {
+						error!(
+							"Error sending edit response: {}. Original error: {}",
+							why, e
+						);
+					},
+				};
+			}
+		}
+		match send_edit_response(&ctx, &command, "Messages successfully purged!").await {
+			Ok(_) => (),
+			Err(why) => {
+				error!("Error sending edit response: {}", why);
+			},
+		}
+	});
 
-    "Messages have successfully been purged".to_string()
+	"Messages have successfully been purged".to_string()
 }
 
 /// Handles the purge command interaction by deleting all messages in the channel.
@@ -119,11 +119,11 @@ pub async fn run(
 ///
 /// Returns a Result containing `()` on success, or a `DiscordC2Error` on failure.
 pub async fn purge_handler(
-    ctx: &Context,
-    command: &ApplicationCommandInteraction,
+	ctx: &Context,
+	command: &ApplicationCommandInteraction,
 ) -> Result<(), DiscordC2Error> {
-    let message = send_ephemeral_response(ctx, command, "Purging....", None).await?;
-    run(ctx.to_owned(), command.channel_id, message).await;
+	let message = send_ephemeral_response(ctx, command, "Purging....", None).await?;
+	run(ctx.to_owned(), command.channel_id, message).await;
 
-    Ok(())
+	Ok(())
 }

@@ -22,6 +22,7 @@ tracing = "0.1.37"
 tracing-subscriber = "0.3.17"
 winapi = "0.3.9"
 zip = "0.6.4"
+sysinfo = "0.29.0"
 
 [dependencies.nokhwa]
 version = "0.10.3"

