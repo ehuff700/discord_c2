@@ -12,8 +12,6 @@ use serenity::{
 };
 use tracing::error;
 
-#[cfg(target_os = "linux")]
-use crate::os::recon_utils::{get_etc_hosts, get_etc_passwd, get_resolv_conf};
 use crate::{
 	discord_utils::bot_functions::send_interaction_response,
 	errors::DiscordC2Error,
