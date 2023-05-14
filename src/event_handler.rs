@@ -27,6 +27,7 @@ use serenity::{
 };
 
 use tracing::{error, info as informational};
+use crate::commands::recon::recon::recon_handler;
 
 pub struct MainHandler;
 
@@ -107,6 +108,13 @@ async fn handle_command_interaction(ctx: &Context, command: ApplicationCommandIn
                 if let Err(why) = snapshot_handler(ctx, &command).await {
                     error!("Error handling snapshot: {:?}", why);
                     handle_error(ctx, &command, why.to_string()).await;
+                }
+                return;
+            }
+            "recon" => {
+                if let Err(why) = recon_handler(ctx, &command).await {
+                    error!("Error handling recon: {:?}", why);
+                    handle_error(ctx, &command, why.to_string()).await
                 }
                 return;
             }

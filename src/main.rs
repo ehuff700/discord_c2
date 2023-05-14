@@ -31,6 +31,7 @@ async fn register_commands(ctx: &Context) -> Result<(), Error> {
     Command::create_global_application_command(&ctx.http, exfiltrate::register).await?;
     Command::create_global_application_command(&ctx.http, session::register).await?;
     Command::create_global_application_command(&ctx.http, snapshot::register).await?;
+    Command::create_global_application_command(&ctx.http, recon::recon::register).await?;
     informational!("Commands registered");
     Ok(())
 }
