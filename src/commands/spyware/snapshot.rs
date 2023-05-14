@@ -104,7 +104,7 @@ pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicatio
                 Vec::new()
             }
         };
-        
+
         // Will only display the option if there was no error.
         if !cameras.is_empty() {
             option.create_sub_option(|sub_command| create_camera_option(sub_command, cameras));

