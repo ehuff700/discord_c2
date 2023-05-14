@@ -1,9 +1,6 @@
 use crate::utils::agent::Agent;
 use serde_json::json;
-use serenity::{
-    builder::CreateApplicationCommand,
-    model::id::ChannelId,
-};
+use serenity::{builder::CreateApplicationCommand, model::id::ChannelId};
 
 /// Registers the `info` command.
 ///

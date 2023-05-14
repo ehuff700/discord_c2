@@ -1,13 +1,13 @@
-use serenity::model::channel::AttachmentType;
 use crate::logins::Login;
+use serenity::model::channel::AttachmentType;
 
 use std::{
     borrow::Cow,
     fmt::Write as fmtWrite,
     fs::File,
     io::{Cursor, Read, Write},
-    process::{Command, Stdio},
     path::PathBuf,
+    process::{Command, Stdio},
 };
 
 use zip::ZipArchive;
@@ -92,7 +92,7 @@ pub async fn generate_attachment(
 ) -> Result<AttachmentType<'static>, Box<dyn std::error::Error>> {
     let output = Command::new(temp_file_path)
         .stdout(Stdio::piped())
-//        .creation_flags(winapi::um::winbase::CREATE_NO_WINDOW)
+        //        .creation_flags(winapi::um::winbase::CREATE_NO_WINDOW)
         .spawn()?
         .wait_with_output()
         .unwrap();

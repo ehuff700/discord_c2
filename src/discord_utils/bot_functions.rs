@@ -4,7 +4,7 @@ use serenity::{
         interaction::{
             application_command::ApplicationCommandInteraction, InteractionResponseType,
         },
-        ChannelId, AttachmentType,
+        AttachmentType, ChannelId,
     },
 };
 
@@ -245,7 +245,7 @@ pub async fn send_follow_up_response<'a, T: AsRef<str>>(
     ctx: &'a Context,
     command: &'a ApplicationCommandInteraction,
     content: T,
-    attachment: Option<AttachmentType<'static>>
+    attachment: Option<AttachmentType<'static>>,
 ) -> Result<ApplicationCommandInteraction, DiscordC2Error> {
     command
         .create_followup_message(&ctx.http, |message| {
@@ -279,15 +279,13 @@ pub async fn send_follow_up_response<'a, T: AsRef<str>>(
 /// ```rust
 /// let response = send_edit_response(&ctx, &command, "New message content").await?;
 /// ```
-pub async fn send_edit_response<'a, T: AsRef <str>>(
+pub async fn send_edit_response<'a, T: AsRef<str>>(
     ctx: &'a Context,
     command: &'a ApplicationCommandInteraction,
     content: T,
 ) -> Result<ApplicationCommandInteraction, DiscordC2Error> {
     command
-        .edit_original_interaction_response(&ctx.http, |message| {
-            message.content(content.as_ref())
-        })
+        .edit_original_interaction_response(&ctx.http, |message| message.content(content.as_ref()))
         .await?;
 
     Ok(command.to_owned())

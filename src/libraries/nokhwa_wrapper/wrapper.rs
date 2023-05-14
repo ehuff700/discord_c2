@@ -1,6 +1,13 @@
-use std::io::{Cursor};
-use image::{ImageOutputFormat};
-use nokhwa::{{Camera, query}, Buffer, pixel_format::RgbAFormat, utils::{ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, FrameFormat, RequestedFormat, RequestedFormatType, Resolution}};
+use image::ImageOutputFormat;
+use nokhwa::{
+    pixel_format::RgbAFormat,
+    utils::{
+        ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, FrameFormat,
+        RequestedFormat, RequestedFormatType, Resolution,
+    },
+    Buffer, {query, Camera},
+};
+use std::io::Cursor;
 
 /// Takes a screenshot using the given `camera` and returns the resulting image data as a vector of bytes in JPEG format.
 ///
@@ -44,7 +51,6 @@ pub fn snapshot(mut camera: Camera) -> Result<Vec<u8>, Box<dyn std::error::Error
     image.write_to(&mut cursor, ImageOutputFormat::Jpeg(100))?; // Encode the image into JPEG format with a quality of 100
 
     Ok(jpeg_bytes)
-
 }
 
 /// Returns a list of available cameras and their information.
@@ -72,30 +78,26 @@ pub fn snapshot(mut camera: Camera) -> Result<Vec<u8>, Box<dyn std::error::Error
 ///     }
 /// }
 /// ```
-pub fn list_devices() ->  Result<Vec<CameraInfo>, Box<dyn std::error::Error>> {
+pub fn list_devices() -> Result<Vec<CameraInfo>, Box<dyn std::error::Error>> {
     let devices = query(ApiBackend::Auto)?;
     Ok(devices)
 }
 
-pub fn init_static_cam(
-    index: CameraIndex,
-) -> Result<Camera, Box<dyn std::error::Error>> {
+pub fn init_static_cam(index: CameraIndex) -> Result<Camera, Box<dyn std::error::Error>> {
     // Find the best possible format for our use case
-    let (resolution, frame_format, frame_rate) = (
-        Resolution::new(1920, 1080),
-        FrameFormat::MJPEG,
-        30,
-    );
-    let requested = RequestedFormat::new::<RgbAFormat>(RequestedFormatType::Closest(CameraFormat::new(
-        resolution, frame_format, frame_rate,
-    )));
+    let (resolution, frame_format, frame_rate) =
+        (Resolution::new(1920, 1080), FrameFormat::MJPEG, 30);
+    let requested = RequestedFormat::new::<RgbAFormat>(RequestedFormatType::Closest(
+        CameraFormat::new(resolution, frame_format, frame_rate),
+    ));
 
-    Ok(Camera::new(index,requested)?)
+    Ok(Camera::new(index, requested)?)
 }
 
 //TODO: Implement this function in the front-end
-pub fn _supported_controls(camera: &Camera) -> Result<Vec<CameraControl>, Box<dyn std::error::Error>> {
-
+pub fn _supported_controls(
+    camera: &Camera,
+) -> Result<Vec<CameraControl>, Box<dyn std::error::Error>> {
     // Get the supported controls for the provided camera and return a vector of said controls.
     let camera_controls = camera.camera_controls().unwrap(); //TODO: add error handling
     let mut controls = Vec::with_capacity(camera_controls.len());

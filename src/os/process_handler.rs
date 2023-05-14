@@ -16,7 +16,7 @@ use lazy_static::lazy_static;
 
 #[cfg(target_os = "windows")]
 use regex::Regex;
-use tracing::{error, info as informational, warn};
+use tracing::{error, info as informational};
 
 #[derive(Clone, PartialEq, Eq, Debug, Copy)]
 pub enum ShellType {
@@ -104,6 +104,61 @@ impl ShellType {
         }
     }
 
+    /// Handles reading from the stderr of the process.
+    ///
+    /// This function asynchronously reads from the stderr of the process and returns the output as a `String`.
+    ///
+    /// # Arguments
+    ///
+    /// * `self` - The `ShellType` struct.
+    /// * `handler` - A reference to the `ProcessHandler`.
+    ///
+    /// # Returns
+    ///
+    /// An optional `String` containing the output read from stderr, or `None` if there is no output.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use std::time::Duration;
+    /// use tokio::time::timeout;
+    ///
+    /// async fn example(handler: &ProcessHandler) {
+    ///     if let Some(output) = handle_stderr(handler).await {
+    ///         println!("stderr output: {}", output);
+    ///     } else {
+    ///         println!("No stderr output");
+    ///     }
+    /// }
+    /// ```
+    async fn handle_stderr(self, handler: &ProcessHandler) -> Option<String> {
+        let mut process = handler.process.lock().await;
+        let stderr = process.stderr.as_mut().unwrap();
+        let mut output = String::new();
+
+        let mut buf = [0; 4096];
+        while let Ok(read_result) = timeout(Duration::from_millis(10), stderr.read(&mut buf)).await
+        {
+            match read_result {
+                Ok(read_result) => {
+                    if read_result > 0 {
+                        output.push_str(&String::from_utf8_lossy(&buf[..read_result]));
+                    }
+                }
+                Err(e) => {
+                    error!("Error reading stderr: {}", e);
+                    break;
+                }
+            }
+        }
+
+        if !output.is_empty() {
+            Some(output)
+        } else {
+            None
+        }
+    }
+
     /// Retrieves the current working directory based on the shell type. We only need to use this function on Windows.
     ///
     /// ### Arguments
@@ -152,23 +207,7 @@ impl ShellType {
                 process.stdin.as_mut().unwrap().flush().await?;
                 Ok(ShellType::Cmd)
             }
-            _ => {
-                process
-                    .stdin
-                    .as_mut()
-                    .unwrap()
-                    .write_all("cd".as_bytes())
-                    .await?;
-                process
-                    .stdin
-                    .as_mut()
-                    .unwrap()
-                    .write_all(b"; echo ___CMDDELIM___")
-                    .await?;
-                process.stdin.as_mut().unwrap().write_all(b"\n").await?;
-                process.stdin.as_mut().unwrap().flush().await?;
-                Ok(ShellType::Sh)
-            }
+            _ => Ok(ShellType::Cmd),
         };
 
         // Declare new string buffer
@@ -248,42 +287,6 @@ impl ProcessHandler {
         self.shell_type.handle_stdin(self, command).await?;
         let mut output = String::new();
 
-        async fn read_stderr(process: Arc<Mutex<Child>>) -> Option<String> {
-            let mut process = process.lock().await;
-            let stderr = process.stderr.as_mut().unwrap();
-            let mut output = String::new();
-
-            let mut buf = [0; 4096];
-            loop {
-                match timeout(Duration::from_millis(10), stderr.read(&mut buf)).await {
-                    Ok(read_result) => match read_result {
-                        Ok(bytes_read) => {
-                            if bytes_read > 0 {
-                                output.push_str(&String::from_utf8_lossy(&buf[..bytes_read]));
-                            } else {
-                                informational!("Stopped reading stderr");
-                                break;
-                            }
-                        }
-                        Err(e) => {
-                            error!("Error reading stderr: {}", e);
-                            break;
-                        }
-                    },
-                    Err(_) => {
-                        warn!("Timeout while reading stderr");
-                        break;
-                    }
-                }
-            }
-
-            if !output.is_empty() {
-                Some(output)
-            } else {
-                None
-            }
-        }
-
         // This closure is necessary to release the process lock before reading stderr.
         {
             let mut process = self.process.lock().await;
@@ -302,7 +305,7 @@ impl ProcessHandler {
         }
 
         // Push any stderr to the output if it exists
-        if let Some(stderr) = read_stderr(Arc::clone(&self.process)).await {
+        if let Some(stderr) = self.shell_type.handle_stderr(self).await {
             output.push_str(stderr.as_str());
         };
 
@@ -384,7 +387,6 @@ impl ProcessHandler {
 /// Opens a new shell process of the specified `shell_type`.
 /// Returns a `Child` process representing the opened shell if successful, or an error of type `DiscordC2Error` if there was a problem.
 async fn open_shell(shell_type: ShellType) -> Result<Child, DiscordC2Error> {
-    // Create a new command (tokio) to open the shell
     // Create a new command (tokio) to open the shell
     let child = Command::new(shell_type.as_str())
         .stdin(Stdio::piped())
