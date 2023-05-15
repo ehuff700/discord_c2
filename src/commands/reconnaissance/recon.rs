@@ -107,10 +107,12 @@ pub async fn recon_handler(
             {
                 // Split the strings into a vec, and create an initial response with the first vec.
                 let split_strings = split_string(&string);
+                let formatted = format!("```ansi\n{}```", split_strings.get(0).unwrap());
+
                 let response = send_interaction_response(
                     ctx,
                     command,
-                    split_strings.get(0).unwrap(),
+                    formatted,
                     None
                 ).await?;
 
