@@ -17,7 +17,7 @@ use serenity::{
     },
 };
 
-use tracing::error;
+use tracing::{error, info as informational};
 
 use crate::{
     discord_utils::bot_functions::{
@@ -105,9 +105,13 @@ pub async fn recon_handler(
                 string.len() >= 2000 &&
                 string.len() <= 8000
             {
+                informational!("Main string length: {}", string.len());
+
                 // Split the strings into a vec, and create an initial response with the first vec.
                 let split_strings = split_string(&string);
                 let formatted = format!("```ansi\n{}```", split_strings.get(0).unwrap());
+
+                informational!("First vec length: {}", formatted.len());
 
                 let response = send_interaction_response(
                     ctx,
@@ -119,6 +123,7 @@ pub async fn recon_handler(
                 // For remaining vecs, send a follow up response.
                 for string in split_strings.iter().skip(1) {
                     let formatted = format!("```ansi\n{}```", string);
+                    informational!("Further vec length: {}", string.len());
                     if let Err(why) = send_follow_up_response(
                             ctx,
                             &response,

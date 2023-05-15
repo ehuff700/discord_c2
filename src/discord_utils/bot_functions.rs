@@ -315,13 +315,13 @@ pub fn split_string(input: &str) -> Vec<String> {
     let mut buffer = String::new();
 
     for line in input.lines() {
-        if buffer.len() + line.len() > 2000 {
+        if buffer.len() + line.len() > 1999 {
             // If the current buffer is not empty, add it to the result.
             if !buffer.is_empty() {
                 result.push(buffer);
             }
             // If a single line exceeds the limit, add it on its own.
-            if line.len() > 2000 {
+            if line.len() > 1999 {
                 result.push(line.to_string());
                 buffer = String::new();
             } else {
