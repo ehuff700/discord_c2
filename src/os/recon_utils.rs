@@ -4,8 +4,10 @@ use std::{ fs, path::Path };
 
 use public_ip_addr::get_public_ip;
 use sysinfo::{ System, SystemExt, UserExt };
+use ansi_term::Colour;
 
 use crate::errors::DiscordC2Error;
+use crate::formatted_ansi;
 
 #[derive(Debug)]
 pub enum ReconType {
@@ -47,7 +49,6 @@ pub fn run_recon(command: &str, recon_type: ReconType) -> String {
         }
     }
 
-    // We will need to trim output according to 2k character limit at a later date. This shouldn't be done here, and should be done instead in the messagee handler.
     fn sys_info(command: &str) -> String {
         let mut sys = System::new_all();
         sys.refresh_all();
@@ -57,26 +58,49 @@ pub fn run_recon(command: &str, recon_type: ReconType) -> String {
         match command {
             "userlist" => {
                 for user in sys.users() {
-			
-                    output.push_str(
-                        format!(
-                            "\x1b[1;33mUser:\x1b[0m \x1b[1;32m{}\x1b[0m || \x1b[1;33mGroups:\x1b[0m \x1b[1;32m{:?}\x1b[0m || \x1b[1;33mUID:\x1b[0m \x1b[1;32m{}\x1b[0m",
-                            user.name(),
-                            user.groups(),
-							user.id().to_string(),
-                        ).as_str()
+                    
+                    let label_color = Colour::Blue.bold();
+                    let value_color = Colour::Cyan;
+                
+
+                    let user_info = format!(
+                        "{} || {} || {}",
+                        formatted_ansi!(
+                            label_color, // Label color
+                            value_color, // Value color
+                            "User: ",
+                            user.name().to_string()
+                        ),
+                        formatted_ansi!(
+                            label_color, // Label color
+                            value_color, // Value color
+                            "Groups: ",
+                            format!("{:?}", user.groups())
+                        ),
+                        formatted_ansi!(
+                            label_color, // Label color
+                            value_color, // Value color
+                            "UID: ",
+                            user.id().to_string()
+                        )
                     );
-					
+                    output.push_str(&user_info);
+
                     // On Windows, this value defaults to 0, and as such there is no need to display this in the output.
-					#[cfg(target_os = "linux")]
-					output.push_str(format!(
-						" || \x1b[1;33mGID:\x1b[0m \x1b[1;32m{:?}\x1b[0m",
-						user.group_id().to_string()
-					).as_str());
+                    #[cfg(target_os = "linux")]
+                    output.push_str(
+                        &format!(
+                            " || {}",
+                            formatted_ansi!(
+                                label_color,
+                                value_color,
+                                "GID: ",
+                                user.group_id().to_string()
+                            )
+                        )
+                    );
 
-					output.push('\n');
-
-
+                    output.push('\n');
                 }
                 output
             }
