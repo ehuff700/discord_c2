@@ -10,3 +10,4 @@ normalize_comments = true
 reorder_impl_items = true
 group_imports = "StdExternalCrate"
 struct_field_align_threshold = 20
+max_width = 150

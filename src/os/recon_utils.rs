@@ -60,7 +60,7 @@ pub fn run_recon(command: &str, recon_type: ReconType) -> String {
 			
                     output.push_str(
                         format!(
-                            "\x1b[1;33mUser: {}\x1b[0m || \x1b[1;32mGroups: {:?}\x1b[0m || \x1b[1;33mUser ID: {:?}\x1b[0m || ",
+                            "\x1b[1;33mUser: {}\x1b[0m || \x1b[1;32mGroups: {:?}\x1b[0m || \x1b[1;33mUser ID: {:?}\x1b[0m",
                             user.name(),
                             user.groups(),
 							user.id(),
@@ -70,7 +70,7 @@ pub fn run_recon(command: &str, recon_type: ReconType) -> String {
 					// On Windows, this value defaults to 0, and as such there is no need to display this in the output.
 					#[cfg(target_os = "linux")]
 					output.push_str(format!(
-						"\x1b[1;32m User's Group ID: {:?}\x1b[0m",
+						" || \x1b[1;32m User's Group ID: {:?}\x1b[0m",
 						user.group_id()
 					).as_str());
 

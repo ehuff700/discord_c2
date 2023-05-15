@@ -1,13 +1,13 @@
 use serenity::{
-	client::Context,
-	model::prelude::{
-		interaction::{
-			application_command::ApplicationCommandInteraction,
-			InteractionResponseType,
-		},
-		AttachmentType,
-		ChannelId,
-	},
+    client::Context,
+    model::prelude::{
+        interaction::{
+            application_command::ApplicationCommandInteraction,
+            InteractionResponseType,
+        },
+        AttachmentType,
+        ChannelId,
+    },
 };
 use tracing::error;
 
@@ -43,38 +43,38 @@ use crate::errors::DiscordC2Error;
 /// # }
 /// ```
 pub async fn send_code_message<'a, T: AsRef<str>>(
-	ctx: &'a Context,
-	channel_id: ChannelId,
-	message: T,
-	language_format: &str,
+    ctx: &'a Context,
+    channel_id: ChannelId,
+    message: T,
+    language_format: &str
 ) -> Result<(), String> {
-	let output_chunks = message.as_ref().split('\n');
-	let fence = format!("```{}\n", language_format);
-	let fence_length = fence.len() + 3; // 3 for the closing fence
-	let mut buffer = fence.clone();
+    let output_chunks = message.as_ref().split('\n');
+    let fence = format!("```{}\n", language_format);
+    let fence_length = fence.len() + 3; // 3 for the closing fence
+    let mut buffer = fence.clone();
 
-	for line in output_chunks {
-		if buffer.len() + line.len() + 1 + fence_length > 2000 {
-			buffer.push_str("```");
-			if let Err(why) = channel_id.say(&ctx.http, &buffer).await {
-				println!("Error sending message: {:?}", why);
-				return Err(format!("Error sending message: {:?}", why));
-			}
-			buffer = fence.clone();
-		}
-		buffer.push_str(line);
-		buffer.push('\n');
-	}
+    for line in output_chunks {
+        if buffer.len() + line.len() + 1 + fence_length > 2000 {
+            buffer.push_str("```");
+            if let Err(why) = channel_id.say(&ctx.http, &buffer).await {
+                println!("Error sending message: {:?}", why);
+                return Err(format!("Error sending message: {:?}", why));
+            }
+            buffer = fence.clone();
+        }
+        buffer.push_str(line);
+        buffer.push('\n');
+    }
 
-	if !buffer.is_empty() {
-		buffer.push_str("```");
-		if let Err(why) = channel_id.say(&ctx.http, &buffer).await {
-			println!("Error sending message: {:?}", why);
-			return Err(format!("Error sending message: {:?}", why));
-		}
-	}
+    if !buffer.is_empty() {
+        buffer.push_str("```");
+        if let Err(why) = channel_id.say(&ctx.http, &buffer).await {
+            println!("Error sending message: {:?}", why);
+            return Err(format!("Error sending message: {:?}", why));
+        }
+    }
 
-	Ok(())
+    Ok(())
 }
 
 /// Sends a message to a Discord channel using the provided context.
@@ -104,15 +104,15 @@ pub async fn send_code_message<'a, T: AsRef<str>>(
 /// # }
 /// ```
 pub async fn send_channel_message<T: AsRef<str>>(
-	ctx: &Context,
-	channel_id: ChannelId,
-	message: T,
+    ctx: &Context,
+    channel_id: ChannelId,
+    message: T
 ) -> Result<(), DiscordC2Error> {
-	if let Err(why) = channel_id.say(&ctx.http, message.as_ref()).await {
-		error!("Error sending message: {:?}", why);
-		return Err(DiscordC2Error::from(why));
-	}
-	Ok(())
+    if let Err(why) = channel_id.say(&ctx.http, message.as_ref()).await {
+        error!("Error sending message: {:?}", why);
+        return Err(DiscordC2Error::from(why));
+    }
+    Ok(())
 }
 
 /// Creates an ephemeral response to an application command interaction.
@@ -142,25 +142,23 @@ pub async fn send_channel_message<T: AsRef<str>>(
 /// }
 /// ```
 pub async fn send_ephemeral_response<'a, T: AsRef<str>>(
-	ctx: &'a Context,
-	command: &'a ApplicationCommandInteraction,
-	content: T,
-	attachment: Option<AttachmentType<'static>>,
+    ctx: &'a Context,
+    command: &'a ApplicationCommandInteraction,
+    content: T,
+    attachment: Option<AttachmentType<'static>>
 ) -> Result<ApplicationCommandInteraction, DiscordC2Error> {
-	command
-		.create_interaction_response(&ctx.http, |response| {
-			response
-				.kind(InteractionResponseType::ChannelMessageWithSource)
-				.interaction_response_data(|message| {
-					message.content(content.as_ref()).ephemeral(true);
-					if let Some(attachment) = attachment {
-						message.add_file(attachment);
-					}
-					message
-				})
-		})
-		.await?;
-	Ok(command.to_owned())
+    command.create_interaction_response(&ctx.http, |response| {
+        response
+            .kind(InteractionResponseType::ChannelMessageWithSource)
+            .interaction_response_data(|message| {
+                message.content(content.as_ref()).ephemeral(true);
+                if let Some(attachment) = attachment {
+                    message.add_file(attachment);
+                }
+                message
+            })
+    }).await?;
+    Ok(command.to_owned())
 }
 /// Sends an interaction response to Discord.
 ///
@@ -198,29 +196,27 @@ pub async fn send_ephemeral_response<'a, T: AsRef<str>>(
 /// }
 /// ```
 pub async fn send_interaction_response<'a, T>(
-	ctx: &'a Context,
-	command: &'a ApplicationCommandInteraction,
-	content: T,
-	attachment: Option<AttachmentType<'static>>,
+    ctx: &'a Context,
+    command: &'a ApplicationCommandInteraction,
+    content: T,
+    attachment: Option<AttachmentType<'a>>
 ) -> Result<ApplicationCommandInteraction, DiscordC2Error>
-where
-	T: AsRef<str> + 'a, {
-	command
-		.create_interaction_response(&ctx.http, |response| {
-			response
-				.kind(InteractionResponseType::ChannelMessageWithSource)
-				.interaction_response_data(|message| {
-					message.content(content.as_ref());
+    where T: AsRef<str> + 'a
+{
+    command.create_interaction_response(&ctx.http, |response| {
+        response
+            .kind(InteractionResponseType::ChannelMessageWithSource)
+            .interaction_response_data(|message| {
+                message.content(content.as_ref());
 
-					if let Some(attachment) = attachment {
-						message.add_file(attachment);
-					}
+                if let Some(attachment) = attachment {
+                    message.add_file(attachment);
+                }
 
-					message
-				})
-		})
-		.await?;
-	Ok(command.to_owned())
+                message
+            })
+    }).await?;
+    Ok(command.to_owned())
 }
 
 /// Send a follow-up response to an application command interaction.
@@ -243,22 +239,20 @@ where
 /// let response = send_follow_up_response(&ctx, &command, "Follow up message content").await?;
 /// ```
 pub async fn send_follow_up_response<'a, T: AsRef<str>>(
-	ctx: &'a Context,
-	command: &'a ApplicationCommandInteraction,
-	content: T,
-	attachment: Option<AttachmentType<'static>>,
+    ctx: &'a Context,
+    command: &'a ApplicationCommandInteraction,
+    content: T,
+    attachment: Option<AttachmentType<'static>>
 ) -> Result<ApplicationCommandInteraction, DiscordC2Error> {
-	command
-		.create_followup_message(&ctx.http, |message| {
-			message.content(content.as_ref());
-			if let Some(attachment) = attachment {
-				message.add_file(attachment);
-			}
-			message
-		})
-		.await?;
+    command.create_followup_message(&ctx.http, |message| {
+        message.content(content.as_ref());
+        if let Some(attachment) = attachment {
+            message.add_file(attachment);
+        }
+        message
+    }).await?;
 
-	Ok(command.to_owned())
+    Ok(command.to_owned())
 }
 
 /// Edit the original response to an application command interaction.
@@ -281,13 +275,72 @@ pub async fn send_follow_up_response<'a, T: AsRef<str>>(
 /// let response = send_edit_response(&ctx, &command, "New message content").await?;
 /// ```
 pub async fn send_edit_response<'a, T: AsRef<str>>(
-	ctx: &'a Context,
-	command: &'a ApplicationCommandInteraction,
-	content: T,
+    ctx: &'a Context,
+    command: &'a ApplicationCommandInteraction,
+    content: T
 ) -> Result<ApplicationCommandInteraction, DiscordC2Error> {
-	command
-		.edit_original_interaction_response(&ctx.http, |message| message.content(content.as_ref()))
-		.await?;
+    command.edit_original_interaction_response(&ctx.http, |message|
+        message.content(content.as_ref())
+    ).await?;
 
-	Ok(command.to_owned())
+    Ok(command.to_owned())
+}
+
+/// Splits the input string into a vector of strings, each representing a portion of the input that does not exceed the character limit.
+///
+/// # Arguments
+///
+/// * `input` - The input string to be split.
+/// * `limit` - The maximum number of characters allowed in each portion.
+///
+/// # Returns
+///
+/// A vector of strings containing the split portions of the input string.
+///
+/// # Example
+///
+/// ```
+/// let input = "Lorem ipsum dolor sit amet, consectetur adipiscing elit.";
+/// let limit = 20;
+/// let result = split_string(input, limit);
+///
+/// assert_eq!(result, vec![
+///     "Lorem ipsum dolor",
+///     "sit amet, consectetur",
+/// "adipiscing elit."
+/// ]);
+/// ```
+pub fn split_string(input: &str) -> Vec<String> {
+    let mut result = Vec::new();
+    let mut buffer = String::new();
+
+    for line in input.lines() {
+        if buffer.len() + line.len() > 2000 {
+            // If the current buffer is not empty, add it to the result.
+            if !buffer.is_empty() {
+                result.push(buffer);
+            }
+            // If a single line exceeds the limit, add it on its own.
+            if line.len() > 2000 {
+                result.push(line.to_string());
+                buffer = String::new();
+            } else {
+                // Otherwise, start a new buffer with this line.
+                buffer = line.to_string();
+            }
+        } else {
+            // If adding this line wouldn't exceed the limit, add it to the buffer.
+            if !buffer.is_empty() {
+                buffer.push('\n');
+            }
+            buffer.push_str(line);
+        }
+    }
+
+    // If there's anything left in the buffer, add it to the result.
+    if !buffer.is_empty() {
+        result.push(buffer);
+    }
+
+    result
 }
