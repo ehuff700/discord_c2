@@ -60,9 +60,7 @@ impl From<std::io::Error> for DiscordC2Error {
 	fn from(error: std::io::Error) -> Self {
 		match error.kind() {
 			std::io::ErrorKind::NotFound => DiscordC2Error::NotFound(error.to_string()),
-			std::io::ErrorKind::PermissionDenied => {
-				DiscordC2Error::PermissionDenied(error.to_string())
-			},
+			std::io::ErrorKind::PermissionDenied => DiscordC2Error::PermissionDenied(error.to_string()),
 			_ => DiscordC2Error::ConfigError(error.to_string()),
 		}
 	}

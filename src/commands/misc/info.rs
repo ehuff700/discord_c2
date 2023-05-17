@@ -1,42 +1,24 @@
 use serde_json::json;
-use serenity::{builder::CreateApplicationCommand, model::id::ChannelId};
 
-use crate::utils::agent::Agent;
+use crate::{utils::agent::get_or_create_agent, Context, Error};
 
-/// Registers the `info` command.
-///
-/// # Arguments
-///
-/// * `command` - A mutable reference to the `CreateApplicationCommand` builder.
-///
-/// # Returns
-///
-/// A mutable reference to the modified `CreateApplicationCommand` builder.
-pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
-	// Create the info command. Description must be under 100 characters.
-	command
-		.name("info")
-		.description("Gather information about the agent")
-}
+/// Retrieves information about the agent
+#[poise::command(slash_command)]
+pub async fn info(ctx: Context<'_>) -> Result<(), Error> {
+	let agent = get_or_create_agent(ctx.serenity_context()).await;
 
-/// Runs the `info` command to gather information about the agent.
-///
-/// # Arguments
-///
-/// * `channel_id` - The ID of the channel in which the command was issued.
-/// * `agent` - An instance of the `Agent` struct.
-///
-/// # Returns
-///
-/// A string containing the formatted JSON representation of the `agent`.
-pub fn run(channel_id: &ChannelId, agent: Agent) -> String {
-	if channel_id == agent.get_command_channel() {
+	// Making sure the command was sent in a valid channel, otherwise, defer the interaction.
+	if agent.get_command_channel() == &ctx.channel_id() {
 		let data = json!(agent);
 
 		// Format the JSON string with indentation
-		let formatted = serde_json::to_string_pretty(&data).unwrap();
-		format!("Agent Info \n```json\n{}\n```", formatted)
+		let mut formatted = serde_json::to_string_pretty(&data).unwrap();
+		formatted = format!("Agent Info \n```json\n{}\n```", formatted);
+
+		ctx.say(formatted).await?;
 	} else {
-		" ".to_string()
+		ctx.say("x").await?; // find a better way to do this
 	}
+
+	Ok(())
 }

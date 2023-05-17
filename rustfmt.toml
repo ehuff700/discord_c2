@@ -1,6 +1,6 @@
 hard_tabs = true # Not up to negotiation.
-brace_style = "PreferSameLine"
 enum_discrim_align_threshold = 20
+brace_style="SameLineWhere"
 hex_literal_case = "Upper"
 imports_layout = "HorizontalVertical"
 match_block_trailing_comma = true

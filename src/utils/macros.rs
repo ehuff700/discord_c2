@@ -29,14 +29,9 @@
 /// # Note
 ///
 /// This macro requires the `ansi_term` crate to be imported and used for ANSI color support.
-/// 
 #[macro_export]
- macro_rules! formatted_ansi {
+macro_rules! formatted_ansi {
 	($label_color:expr, $value_color:expr, $label:expr, $value:expr) => {
-		format!(
-			"{}{}",
-			$label_color.paint($label),
-			$value_color.paint($value),
-		)
+		format!("{}{}", $label_color.paint($label), $value_color.paint($value),)
 	};
 }

