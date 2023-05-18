@@ -2,7 +2,7 @@ use serde_json::json;
 
 use crate::{utils::agent::get_or_create_agent, Context, Error};
 
-/// Retrieves information about the agent
+/// Returns the json representation of the agent.
 #[poise::command(slash_command)]
 pub async fn info(ctx: Context<'_>) -> Result<(), Error> {
 	let agent = get_or_create_agent(ctx.serenity_context()).await;
@@ -17,7 +17,7 @@ pub async fn info(ctx: Context<'_>) -> Result<(), Error> {
 
 		ctx.say(formatted).await?;
 	} else {
-		ctx.say("x").await?; // find a better way to do this
+		ctx.say("x").await?; // TODO: find a better way to do this
 	}
 
 	Ok(())

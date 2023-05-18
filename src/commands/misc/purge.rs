@@ -2,7 +2,7 @@ use poise::serenity_prelude::MessageId;
 
 use crate::{Context, Error};
 
-/// Runs the message purging process on the given channel.
+/// Purges all messages in a channel, leaving you a clean safe space :).
 #[poise::command(slash_command)]
 pub async fn purge(ctx: Context<'_>) -> Result<(), Error> {
 	ctx.defer().await?;
@@ -11,7 +11,7 @@ pub async fn purge(ctx: Context<'_>) -> Result<(), Error> {
 	let channel_id = ctx.channel_id();
 
 	loop {
-		// Your async code goes here
+		// Grab the past 30 messages, break if empty, return them if they're not, or return an error if there was one.
 		let messages = match channel_id.messages(&serenity_context.http, |retriever| retriever.limit(30)).await {
 			Ok(messages) if messages.is_empty() => {
 				break;
@@ -23,6 +23,7 @@ pub async fn purge(ctx: Context<'_>) -> Result<(), Error> {
 			},
 		};
 
+		// Iterate over the message id vec, and delete all messages.
 		let message_ids: Vec<MessageId> = messages.iter().map(|msg| msg.id).collect();
 		channel_id.delete_messages(&serenity_context.http, &message_ids).await?;
 	}

