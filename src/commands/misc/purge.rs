@@ -2,7 +2,7 @@ use poise::serenity_prelude::MessageId;
 
 use crate::{Context, Error};
 
-/// Purges all messages in a channel, leaving you a clean safe space :).
+/// Purges all messages in a channel, leaving you a clean safe space :)
 #[poise::command(slash_command)]
 pub async fn purge(ctx: Context<'_>) -> Result<(), Error> {
 	ctx.defer().await?;

