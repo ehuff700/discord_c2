@@ -3,28 +3,25 @@ use libc::{gethostname, uname};
 use libc::{proc_listallpids, proc_pidinfo};
 
 use super::Unix;
-use crate::os::traits::recon;
+use crate::os::traits::{recon, recon::Process};
 
 impl recon::ReconModule for Unix {
-	fn username(&self) -> String {
-		std::env::var("USER").unwrap_or(String::from("Unknown User"))
-	}
+	fn username(&self) -> String { std::env::var("USER").unwrap_or(String::from("Unknown User")) }
 
 	fn hostname(&self) -> String {
 		const HOST_NAME_MAX: usize = 256;
 		let mut hostname_vec = vec![0u8; HOST_NAME_MAX];
-		unsafe {
-			let hostname_ptr = hostname_vec.as_mut_ptr() as *mut libc::c_char;
-			let result = gethostname(hostname_ptr, HOST_NAME_MAX);
-			if result == 0 {
-				std::ffi::CStr::from_ptr(hostname_ptr).to_str().unwrap().to_string()
-			} else {
-				String::from("Unknown Hostname")
-			}
+		let hostname_ptr = hostname_vec.as_mut_ptr() as *mut libc::c_char;
+		let result = unsafe { gethostname(hostname_ptr, HOST_NAME_MAX) };
+
+		if result == 0 {
+			unsafe { std::ffi::CStr::from_ptr(hostname_ptr).to_str().unwrap().to_string() }
+		} else {
+			String::from("Unknown Hostname")
 		}
 	}
 
-	fn processes(&self) -> Vec<crate::os::traits::recon::Process> {
+	fn processes(&self) -> Option<Vec<Process>> {
 		// abstraction over platform specific details
 		get_processes()
 	}
@@ -43,6 +40,8 @@ impl recon::ReconModule for Unix {
 			format!("{} {} {} {}", sysname, release, version, machine)
 		}
 	}
+
+	fn users(&self) -> Vec<User> { todo!() }
 }
 
 #[cfg(target_os = "macos")]
@@ -75,10 +74,17 @@ fn get_processes() -> Vec<crate::os::traits::recon::Process> {
 	}
 	let pid_slice = unsafe { std::slice::from_raw_parts(pid_list.as_ptr(), ret as usize) };
 	let mut processes = Vec::with_capacity(ret as usize);
-	for proc in pid_slice.iter().map(|v| get_process_info(*v)).filter(|v| v.pbi_pid != 0) {
+	for proc in pid_slice
+		.iter()
+		.map(|v| get_process_info(*v))
+		.filter(|v| v.pbi_pid != 0)
+	{
 		let pid = proc.pbi_pid;
 		let ppid = proc.pbi_ppid;
-		let name = unsafe { CStr::from_ptr(proc.pbi_name.as_ptr()) }.to_str().unwrap().to_string();
+		let name = unsafe { CStr::from_ptr(proc.pbi_name.as_ptr()) }
+			.to_str()
+			.unwrap()
+			.to_string();
 		let process = crate::os::traits::recon::Process { name, pid, ppid };
 		processes.push(process);
 	}
