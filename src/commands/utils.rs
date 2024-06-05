@@ -39,16 +39,16 @@ pub async fn clear(
 						message.delete(&ctx.http()).await?;
 						counter += 1;
 					},
-					Err(error) => error!("error retrieving message: {}", error),
+					Err(error) => error!("Error retrieving message: {}", error),
 				}
 			}
-			say!(ctx, "successfully deleted {} messages", counter);
+			say!(&ctx, "Successfully deleted {} messages", counter);
 		},
 		None => {
 			let mut guard = ctx.data().config.lock().await;
 			guard.command_channel.delete(ctx.http()).await?;
 			guard.reset_command_channel(ctx.serenity_context()).await?;
-			guard.command_channel.say(ctx.http(), "messages succesfully cleared").await?;
+			guard.command_channel.say(ctx.http(), "Messages successfully cleared").await?;
 		},
 	}
 	Ok(())

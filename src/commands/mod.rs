@@ -1,3 +1,5 @@
+pub mod exploitation;
+pub mod recon;
 pub mod utils;
 
 #[macro_export]
@@ -17,4 +19,32 @@ macro_rules! reply {
             tracing::error!("error sending discord message: {}", why);
         }
     }}
+}
+
+#[macro_export]
+macro_rules! reply_as_attachment {
+	($ctx:expr, $buffer:expr) => {{
+		if let Err(why) = $ctx
+			.send(
+				poise::CreateReply::default()
+					.attachment(CreateAttachment::bytes($buffer, "message.txt"))
+					.reply(true),
+			)
+			.await
+		{
+			tracing::error!("error sending discord message: {}", why);
+		}
+	}};
+	($ctx:expr, $buffer:expr, $filename:expr) => {{
+		if let Err(why) = $ctx
+			.send(
+				poise::CreateReply::default()
+					.attachment(CreateAttachment::bytes($buffer, $filename))
+					.reply(true),
+			)
+			.await
+		{
+			tracing::error!("error sending discord message: {}", why);
+		}
+	}};
 }

