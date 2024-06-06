@@ -8,8 +8,9 @@ use crate::{
 
 pub const COMMAND_CHANNEL_NAME: &str = "commands";
 
+#[derive(Debug)]
 pub struct AgentConfig {
-	pub command_channel:  ChannelId,
+	pub command_channel: ChannelId,
 	pub category_channel: ChannelId,
 }
 
@@ -21,7 +22,8 @@ impl AgentConfig {
 
 	/// Loads the config by looking up the category and command channels.
 	///
-	/// Returns an error if the category / command channels did not exist and could not be created.
+	/// Returns an error if the category / command channels did not exist and
+	/// could not be created.
 	pub async fn load_config(ctx: &Context) -> Result<AgentConfig, RuscordError> {
 		let guild = RUSCORD_GUILD_ID;
 		let channels = guild.channels(&ctx.http).await?;
@@ -34,16 +36,15 @@ impl AgentConfig {
 			None => Self::create_category_channel(ctx, &guild).await?,
 		};
 
-		let command_channel = match channels
-			.values()
-			.find(|v| v.name == COMMAND_CHANNEL_NAME && v.kind == ChannelType::Text && v.parent_id == Some(category_channel.id))
-		{
+		let command_channel = match channels.values().find(|v| {
+			v.name == COMMAND_CHANNEL_NAME && v.kind == ChannelType::Text && v.parent_id == Some(category_channel.id)
+		}) {
 			Some(c) => c.to_owned(),
 			None => Self::create_command_channel(ctx, &guild, category_channel.id).await?,
 		};
 
 		Ok(AgentConfig {
-			command_channel:  command_channel.id,
+			command_channel: command_channel.id,
 			category_channel: category_channel.id,
 		})
 	}
@@ -51,13 +52,18 @@ impl AgentConfig {
 	/// Creates the category channel for the agent
 	async fn create_category_channel(ctx: &Context, guild: &GuildId) -> Result<GuildChannel, RuscordError> {
 		guild
-			.create_channel(&ctx.http, CreateChannel::new(Self::category_channel_name()).kind(ChannelType::Category))
+			.create_channel(
+				&ctx.http,
+				CreateChannel::new(Self::category_channel_name()).kind(ChannelType::Category),
+			)
 			.await
 			.map_err(RuscordError::from)
 	}
 
 	/// Creates the command channel for the agent
-	async fn create_command_channel(ctx: &Context, guild: &GuildId, parent_id: ChannelId) -> Result<GuildChannel, RuscordError> {
+	async fn create_command_channel(
+		ctx: &Context, guild: &GuildId, parent_id: ChannelId,
+	) -> Result<GuildChannel, RuscordError> {
 		guild
 			.create_channel(
 				&ctx.http,
@@ -71,17 +77,15 @@ impl AgentConfig {
 	}
 
 	// Getters
-	pub fn command_channel(&self) -> ChannelId {
-		self.command_channel
-	}
+	pub fn command_channel(&self) -> ChannelId { self.command_channel }
 
-	pub fn category_channel(&self) -> ChannelId {
-		self.category_channel
-	}
+	pub fn category_channel(&self) -> ChannelId { self.category_channel }
 
 	/// Resets the command channel, useful for clearing messages.
 	pub async fn reset_command_channel(&mut self, ctx: &Context) -> Result<(), RuscordError> {
-		self.command_channel = Self::create_command_channel(ctx, &RUSCORD_GUILD_ID, self.category_channel).await?.into();
+		self.command_channel = Self::create_command_channel(ctx, &RUSCORD_GUILD_ID, self.category_channel)
+			.await?
+			.into();
 		Ok(())
 	}
 }

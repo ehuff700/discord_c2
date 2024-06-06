@@ -7,6 +7,7 @@ mod types {
 	pub type WCHAR = u16;
 	pub type USHORT = u16;
 	pub type UCHAR = u8;
+	pub type UINT = u32;
 	pub type DWORD = u32;
 	pub type HANDLE = *mut std::ffi::c_void;
 	pub type BOOL = bool;
@@ -19,6 +20,8 @@ mod constants {
 	pub const TH32CS_SNAPPROCESS: DWORD = 0x00000002;
 	pub const MAX_PATH: usize = 256;
 	pub const INVALID_HANDLE_VALUE: HANDLE = -1isize as HANDLE;
+	pub const PROCESS_TERMINATE: DWORD = 0x00000001;
+	pub const CREATE_NEW_CONSOLE: DWORD = 0x00000010;
 }
 
 #[allow(non_snake_case, clippy::upper_case_acronyms)]
@@ -62,6 +65,10 @@ mod prototypes {
 		pub fn CreateToolhelp32Snapshot(dwflags: DWORD, th32ProcessID: DWORD) -> HANDLE;
 		pub fn Process32First(hSnapshot: HANDLE, lppe: *mut PROCESSENTRY32) -> BOOL;
 		pub fn Process32Next(hSnapshot: HANDLE, lppe: *mut PROCESSENTRY32) -> BOOL;
+		pub fn TerminateProcess(hProcess: HANDLE, uExitCode: UINT) -> BOOL;
+		pub fn ExitProcess(uExitCode: UINT) -> !;
+		pub fn OpenProcess(dwDesiredAccess: DWORD, bInheritHandle: BOOL, dwProcessId: DWORD) -> HANDLE;
+		pub fn CloseHandle(hObject: HANDLE) -> BOOL;
 	}
 }
 

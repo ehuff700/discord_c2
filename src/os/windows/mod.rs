@@ -2,5 +2,5 @@ pub mod api;
 pub mod process;
 pub mod recon;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Windows;

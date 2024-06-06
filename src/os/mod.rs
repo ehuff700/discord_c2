@@ -11,7 +11,7 @@ use windows::Windows as OS;
 
 pub(super) mod traits;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct OsModule {
 	pub inner: OS,
 }
@@ -19,7 +19,5 @@ pub struct OsModule {
 impl Deref for OsModule {
 	type Target = OS;
 
-	fn deref(&self) -> &Self::Target {
-		&self.inner
-	}
+	fn deref(&self) -> &Self::Target { &self.inner }
 }

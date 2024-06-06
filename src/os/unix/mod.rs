@@ -1,4 +1,4 @@
 pub mod recon;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Unix;

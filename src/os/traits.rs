@@ -39,12 +39,18 @@ pub mod process {
 	use crate::RuscordError;
 
 	pub trait ProcessModule {
-		/// Spawns a new process on the host with the given name and arguments.
-		fn spawn(&self, name: &str, args: &[&str]) -> Result<(), RuscordError>;
+		/// Spawns a new process on the host with the given name and arguments,
+		/// returning the PID of the new process.
+		fn spawn(&self, name: &str, args: Option<String>) -> Result<(), RuscordError>;
 
-		/// Kills the process with the given pid.
+		/// Kills the process with the given pid and exit code.
 		///
-		/// If no pid is provided, it will kill the current process.
-		fn kill(&self, pid: Option<u32>);
+		/// If no exit code is provided, a default exit code of 0 will be used.
+		fn kill_other(&self, pid: u32, exit_code: Option<u32>) -> Result<(), RuscordError>;
+
+		/// Kills the current process.
+		///
+		/// If no exit code is provided, a default exit code of 0 will be used.
+		fn kill_self(&self, exit_code: Option<u32>) -> !;
 	}
 }

