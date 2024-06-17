@@ -1,0 +1,3 @@
+[discord]
+discord_token = "" # bot token
+ruscord_guild_id = "" # guild ID bot will report to

@@ -9,7 +9,6 @@ edition = "2021"
 anyhow = "1.0.70"
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-sysinfo = "0.30.12"
 poise = { git = "https://github.com/serenity-rs/poise.git", branch = "current"}
 litcrypt2 = "0.1.2"
 once_cell = "1.19.0"
@@ -36,3 +35,7 @@ overflow-checks = false
 lto = true
 panic = "abort"
 codegen-units = 1
+
+[build-dependencies]
+serde = { version = "1.0.203", features = ["derive"] }
+toml = "0.8.14"

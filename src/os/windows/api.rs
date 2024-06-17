@@ -22,6 +22,7 @@ mod constants {
 	pub const INVALID_HANDLE_VALUE: HANDLE = -1isize as HANDLE;
 	pub const PROCESS_TERMINATE: DWORD = 0x00000001;
 	pub const CREATE_NEW_CONSOLE: DWORD = 0x00000010;
+	pub const CREATE_NO_WINDOW: DWORD = 0x08000000;
 }
 
 #[allow(non_snake_case, clippy::upper_case_acronyms)]

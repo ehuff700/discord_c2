@@ -4,7 +4,8 @@ use poise::serenity_prelude::CreateAttachment;
 use tracing::debug;
 
 use crate::{
-	os::traits::recon::ReconModule, reply, reply_as_attachment, RuscordContext, RuscordError, MAX_DISCORD_CHARS,
+	constants::MAX_DISCORD_CHARS, os::traits::recon::ReconModule, reply, reply_as_attachment, RuscordContext,
+	RuscordError,
 };
 /// Obtains information about the current host.
 #[poise::command(prefix_command, slash_command, rename = "agent-info")]
@@ -50,7 +51,7 @@ pub async fn processes(
 				reply!(ctx, "No processes found");
 				return Ok(());
 			}
-			
+
 			let mut buffer = String::with_capacity(1024);
 			for entry in filtered_list {
 				writeln!(buffer, "ppid: {} pid: {} {}", entry.ppid, entry.pid, entry.name)?;
