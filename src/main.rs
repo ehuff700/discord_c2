@@ -1,6 +1,6 @@
 use commands::{process, recon, utils};
 use config::AgentConfig;
-use constants::RUSCORD_GUILD_ID;
+use constants::{DISCORD_TOKEN, RUSCORD_GUILD_ID};
 use poise::FrameworkError;
 use tokio::sync::Mutex;
 use tracing::{info, warn};
@@ -37,7 +37,6 @@ async fn main() {
 	tracing_subscriber::fmt()
 		.with_env_filter(EnvFilter::from_default_env())
 		.init();
-	let token = std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN");
 	let intents = serenity::GatewayIntents::all();
 
 	let framework = poise::Framework::builder()
@@ -72,7 +71,8 @@ async fn main() {
 			},
 			command_check: Some(|ctx| {
 				Box::pin(async move {
-					if ctx.channel_id() != ctx.data().config.lock().await.command_channel {
+					let guard = ctx.data().config.lock().await;
+					if ctx.channel_id() != guard.command_channel {
 						return Ok(false);
 					}
 					Ok(true)
@@ -93,7 +93,7 @@ async fn main() {
 		})
 		.build();
 
-	let mut client = serenity::ClientBuilder::new(token, intents)
+	let mut client = serenity::ClientBuilder::new(&*DISCORD_TOKEN, intents)
 		.framework(framework)
 		.await
 		.unwrap();

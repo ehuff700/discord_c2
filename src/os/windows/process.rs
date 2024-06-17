@@ -11,8 +11,7 @@ use tracing::{debug, error};
 
 use super::{
 	api::{
-		CloseHandle, ExitProcess, OpenProcess, TerminateProcess, CREATE_NEW_CONSOLE, CREATE_NO_WINDOW,
-		PROCESS_TERMINATE,
+		CloseHandle, ExitProcess, OpenProcess, TerminateProcess, CREATE_NEW_CONSOLE, PROCESS_TERMINATE,
 	},
 	Windows,
 };
