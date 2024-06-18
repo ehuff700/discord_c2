@@ -26,6 +26,7 @@ pub struct Data {
 
 pub type RuscordError = Box<dyn std::error::Error + Send + Sync>;
 pub type RuscordContext<'a> = poise::Context<'a, Data, RuscordError>;
+pub type RuscordResult<T> = std::result::Result<T, RuscordError>;
 
 #[tokio::main]
 async fn main() {
@@ -53,6 +54,7 @@ async fn main() {
 				process::spawn(),
 				process::kill(),
 				process::shell(),
+				process::process_info(),
 			],
 			event_handler: |ctx, event, framework, data| Box::pin(event_handler(ctx, event, framework, data)),
 			on_error: |error| {
@@ -108,7 +110,7 @@ async fn event_handler(
 		serenity::FullEvent::Ready { data_about_bot } => {
 			info!("logged in as {}", data_about_bot.user.name);
 			let channel_id = data.config.lock().await.command_channel;
-			channel_id.say(&ctx.http, "@everyone agent check in").await?;
+			channel_id.say(&ctx.http, "@everyone Agent check in").await?;
 		},
 		serenity::FullEvent::Message { .. } => {},
 		serenity::FullEvent::Ratelimit { data } => {

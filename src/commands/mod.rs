@@ -37,6 +37,7 @@ macro_rules! reply_as_attachment {
 		}
 	}};
 	($ctx:expr, $buffer:expr, $filename:expr) => {{
+		use poise::serenity_prelude::*;
 		if let Err(why) = $ctx
 			.send(
 				poise::CreateReply::default()

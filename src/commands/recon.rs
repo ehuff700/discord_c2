@@ -1,6 +1,5 @@
 use std::fmt::Write;
 
-use poise::serenity_prelude::CreateAttachment;
 use tracing::debug;
 
 use crate::{

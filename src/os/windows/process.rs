@@ -1,4 +1,11 @@
-use std::{future::Future, net::IpAddr, os::windows::process::CommandExt, pin::Pin, process::Stdio, sync::Arc};
+use std::{
+	future::Future,
+	net::IpAddr,
+	os::windows::{ffi::OsStringExt, process::CommandExt},
+	pin::Pin,
+	process::Stdio,
+	sync::Arc,
+};
 
 use tokio::{
 	io::{AsyncReadExt, AsyncWriteExt},
@@ -11,11 +18,20 @@ use tracing::{debug, error};
 
 use super::{
 	api::{
-		CloseHandle, ExitProcess, OpenProcess, TerminateProcess, CREATE_NEW_CONSOLE, PROCESS_TERMINATE,
+		CloseHandle, ExitProcess, GetModuleBaseNameW, OpenProcess, TerminateProcess, CREATE_NEW_CONSOLE, MAX_PATH,
+		PROCESS_TERMINATE,
 	},
 	Windows,
 };
-use crate::{os::traits::process::ProcessModule, RuscordError};
+use crate::{
+	os::{
+		traits::process::{CurrentProcessInfo, EnvironmentVariable, ProcessModule},
+		windows::api::{
+			GetCurrentProcess, NtQueryInformationProcess, DWORD, PROCESS_BASIC_INFORMATION, STATUS_SUCCESS,
+		},
+	},
+	RuscordError,
+};
 
 impl ProcessModule for Windows {
 	fn spawn(&self, name: &str, args: Option<String>) -> Result<(), RuscordError> {
@@ -145,6 +161,51 @@ impl ProcessModule for Windows {
 			}
 
 			Ok(())
+		})
+	}
+
+	fn process_info(&self) -> crate::RuscordResult<crate::os::traits::process::CurrentProcessInfo> {
+		let env_variables = std::env::vars()
+			.map(|(key, value)| EnvironmentVariable { key, value })
+			.collect::<Vec<EnvironmentVariable>>();
+		let pid = std::process::id();
+		let process_handle = unsafe { GetCurrentProcess() };
+		let ppid = {
+			let mut pbi: PROCESS_BASIC_INFORMATION = unsafe { std::mem::zeroed() };
+			let mut return_length = 0;
+			let status = unsafe {
+				NtQueryInformationProcess(
+					process_handle,
+					0, // ProcessBasicInformation,
+					&mut pbi as *mut _ as *mut _,
+					std::mem::size_of::<PROCESS_BASIC_INFORMATION>() as u32,
+					&mut return_length,
+				)
+			};
+
+			if status != STATUS_SUCCESS {
+				error!("failed to get ppid");
+				return Err(std::io::Error::last_os_error().into());
+			}
+			pbi.inheritedFromUniqueProcessId as DWORD
+		};
+
+		let name = {
+			let mut buffer = vec![0u16; MAX_PATH];
+			let length = unsafe { GetModuleBaseNameW(process_handle, 0, buffer.as_mut_ptr(), buffer.len() as u32) };
+			if length == 0 {
+				error!("failed to get process name");
+				return Err(std::io::Error::last_os_error().into());
+			}
+			buffer.truncate(length as usize);
+			std::ffi::OsString::from_wide(&buffer)
+		};
+
+		Ok(CurrentProcessInfo {
+			name,
+			pid,
+			ppid,
+			env_variables,
 		})
 	}
 }

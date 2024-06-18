@@ -1,7 +1,8 @@
-#[allow(non_camel_case_types, clippy::upper_case_acronyms)]
+#![allow(non_camel_case_types, clippy::upper_case_acronyms, non_snake_case)]
 mod types {
 	pub type NTSTATUS = i32;
 	pub type ULONG = u32;
+	pub type PULONG = *mut ULONG;
 	pub type ULONG_PTR = usize;
 	pub type LONG = i32;
 	pub type WCHAR = u16;
@@ -10,10 +11,13 @@ mod types {
 	pub type UINT = u32;
 	pub type DWORD = u32;
 	pub type HANDLE = *mut std::ffi::c_void;
+	pub type HMODULE = isize;
+	pub type PVOID = *mut std::ffi::c_void;
+	pub type PWSTR = *mut u16;
 	pub type BOOL = bool;
+	pub type PROCESSINFOCLASS = i32;
 }
 
-#[allow(non_snake_case, unused, clippy::upper_case_acronyms)]
 mod constants {
 	use super::types::*;
 	pub const STATUS_SUCCESS: NTSTATUS = 0x00000000;
@@ -25,7 +29,6 @@ mod constants {
 	pub const CREATE_NO_WINDOW: DWORD = 0x08000000;
 }
 
-#[allow(non_snake_case, clippy::upper_case_acronyms)]
 mod structs {
 	use super::{constants::*, types::*};
 
@@ -57,6 +60,16 @@ mod structs {
 		pub dwFlags: DWORD,
 		pub szExeFile: [u8; MAX_PATH],
 	}
+
+	#[repr(C)]
+	pub struct PROCESS_BASIC_INFORMATION {
+		pub exitStatus: NTSTATUS,
+		pub pebBaseAddress: PVOID,
+		pub affinityMask: usize,
+		pub basePriority: i32,
+		pub uniqueProcessId: ULONG_PTR,
+		pub inheritedFromUniqueProcessId: ULONG_PTR,
+	}
 }
 
 mod prototypes {
@@ -69,6 +82,12 @@ mod prototypes {
 		pub fn TerminateProcess(hProcess: HANDLE, uExitCode: UINT) -> BOOL;
 		pub fn ExitProcess(uExitCode: UINT) -> !;
 		pub fn OpenProcess(dwDesiredAccess: DWORD, bInheritHandle: BOOL, dwProcessId: DWORD) -> HANDLE;
+		pub fn GetCurrentProcess() -> HANDLE;
+		pub fn GetModuleBaseNameW(hProcess: HANDLE, hModule: HMODULE, lpBaseName: PWSTR, nSize: DWORD) -> DWORD;
+		pub fn NtQueryInformationProcess(
+			processHandle: HANDLE, processInformationClass: PROCESSINFOCLASS, processInformation: PVOID,
+			processInformationLength: ULONG, returnLength: PULONG,
+		) -> NTSTATUS;
 		pub fn CloseHandle(hObject: HANDLE) -> BOOL;
 	}
 }
@@ -76,3 +95,4 @@ mod prototypes {
 pub use constants::*;
 pub use prototypes::*;
 pub use structs::*;
+pub use types::*;
