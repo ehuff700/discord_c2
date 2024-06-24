@@ -1,9 +1,9 @@
-use libc::{gethostname, uname};
 #[cfg(target_os = "macos")]
-use libc::{proc_listallpids, proc_pidinfo};
-
-use super::Unix;
-use crate::os::traits::recon::{self, Process, User};
+use super::{api, Unix};
+use crate::os::{
+	traits::recon::{self, Process, User},
+	unix::api::{gethostname, uname},
+};
 
 impl recon::ReconModule for Unix {
 	fn username(&self) -> String { std::env::var("USER").unwrap_or(String::from("Unknown User")) }
@@ -27,7 +27,7 @@ impl recon::ReconModule for Unix {
 	}
 
 	fn os_version(&self) -> String {
-		let mut buf: libc::utsname = unsafe { std::mem::zeroed() };
+		let mut buf: api::utsname = unsafe { std::mem::zeroed() };
 
 		unsafe {
 			if uname(&mut buf) != 0 {
@@ -52,6 +52,8 @@ fn get_processes() -> Vec<crate::os::traits::recon::Process> {
 	use libc::{c_void, proc_bsdinfo, PROC_PIDTBSDINFO};
 	use tracing::error;
 
+	use crate::os::unix::api::{proc_listallpids, proc_pidinfo};
+
 	fn get_process_info(pid: i32) -> proc_bsdinfo {
 		let mut proc: proc_bsdinfo = unsafe { std::mem::zeroed() };
 		unsafe {
@@ -60,7 +62,7 @@ fn get_processes() -> Vec<crate::os::traits::recon::Process> {
 				PROC_PIDTBSDINFO,
 				0,
 				&mut proc as *mut proc_bsdinfo as *mut libc::c_void,
-				std::mem::size_of::<proc_bsdinfo>() as i32,
+				std::mem::size_of::<proc_bsdinfo>(),
 			)
 		};
 		proc

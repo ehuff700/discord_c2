@@ -14,7 +14,7 @@ mod constants {
 
 #[allow(non_camel_case_types, clippy::upper_case_acronyms)]
 mod structs {
-	use super::{constants::*, types::*};
+	use super::types::*;
 
 	#[repr(C)]
 	pub struct utsname {
@@ -35,14 +35,12 @@ mod prototypes {
 		pub fn uname(utsname: *mut utsname) -> c_int;
 		#[cfg(target_os = "macos")]
 		pub fn proc_pidinfo(
-			pid: pid_t, flavor: u32, arg: u32, buffer: *mut std::ffi::c_void, buffersize: size_t,
+			pid: pid_t, flavor: i32, arg: u32, buffer: *mut std::ffi::c_void, buffersize: size_t,
 		) -> c_int;
 		#[cfg(target_os = "macos")]
 		pub fn proc_listallpids(buffer: *mut std::ffi::c_void, buffersize: size_t) -> c_int;
 	}
 }
 
-pub use constants::*;
 pub use prototypes::*;
 pub use structs::*;
-pub use types::*;
