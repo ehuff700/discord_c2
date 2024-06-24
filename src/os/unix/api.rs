@@ -34,9 +34,11 @@ mod prototypes {
 		pub fn gethostname(name: *mut c_char, len: size_t) -> c_int;
 		pub fn uname(utsname: *mut utsname) -> c_int;
 		#[cfg(target_os = "macos")]
-		pub fn proc_pidinfo(pid: pid_t, flavor: u32, arg: u32, buffer: *mut c_void, buffersize: size_t) -> c_int;
+		pub fn proc_pidinfo(
+			pid: pid_t, flavor: u32, arg: u32, buffer: *mut std::ffi::c_void, buffersize: size_t,
+		) -> c_int;
 		#[cfg(target_os = "macos")]
-		pub fn proc_listallpids(buffer: *mut c_void, buffersize: size_t) -> c_int;
+		pub fn proc_listallpids(buffer: *mut std::ffi::c_void, buffersize: size_t) -> c_int;
 	}
 }
 

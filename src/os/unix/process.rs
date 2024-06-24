@@ -9,7 +9,7 @@ use super::{
 use crate::{os::traits::process::ProcessModule, RuscordError};
 
 impl ProcessModule for Unix {
-	fn spawn(&self, name: &str, args: Option<String>) -> Result<(), RuscordError> {
+	fn spawn(&self, name: &str, args: Option<String>) -> Result<u32, RuscordError> {
 		let mut command = &mut std::process::Command::new(name);
 		command
 			.stderr(Stdio::piped())
@@ -21,8 +21,8 @@ impl ProcessModule for Unix {
 			debug!("args: {:?}", split_args);
 			command = command.args(split_args);
 		}
-		command.spawn()?;
-		Ok(())
+		let child = command.spawn()?;
+		Ok(child.id())
 	}
 
 	fn kill_other(&self, pid: u32, exit_code: Option<u32>) -> Result<(), crate::RuscordError> {
@@ -41,4 +41,6 @@ impl ProcessModule for Unix {
 		let exit_code = exit_code.unwrap_or(15);
 		unsafe { exit(exit_code as i32) }
 	}
+
+	fn process_info(&self) -> crate::RuscordResult<crate::os::traits::process::CurrentProcessInfo> { todo!() }
 }

@@ -3,7 +3,7 @@ use libc::{gethostname, uname};
 use libc::{proc_listallpids, proc_pidinfo};
 
 use super::Unix;
-use crate::os::traits::{recon, recon::Process};
+use crate::os::traits::recon::{self, Process, User};
 
 impl recon::ReconModule for Unix {
 	fn username(&self) -> String { std::env::var("USER").unwrap_or(String::from("Unknown User")) }
@@ -23,7 +23,7 @@ impl recon::ReconModule for Unix {
 
 	fn processes(&self) -> Option<Vec<Process>> {
 		// abstraction over platform specific details
-		get_processes()
+		Some(get_processes())
 	}
 
 	fn os_version(&self) -> String {
@@ -104,6 +104,6 @@ mod tests {
 	fn test_processes() {
 		let recon = Unix {};
 		let processes = recon.processes();
-		assert!(!processes.is_empty());
+		assert!(!processes.is_some_and(|v| !v.is_empty()));
 	}
 }

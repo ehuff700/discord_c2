@@ -32,9 +32,14 @@ pub type RuscordResult<T> = std::result::Result<T, RuscordError>;
 async fn main() {
 	// SAFETY: This is safe because there should be no additional threads
 	// spawned at this point.
+
+	#[cfg(target_os = "windows")]
 	unsafe {
 		std::env::set_var("RUST_LOG", "warn,discord_c2=debug");
 	}
+	#[cfg(target_family = "unix")]
+	std::env::set_var("RUST_LOG", "warn,discord_c2=debug");
+
 	tracing_subscriber::fmt()
 		.with_env_filter(EnvFilter::from_default_env())
 		.init();
