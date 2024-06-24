@@ -14,8 +14,8 @@ pub async fn spawn(
 	#[description = "Optional arguments to pass to the executable"] args: Option<String>,
 ) -> Result<(), RuscordError> {
 	let os_module = &ctx.data().os_module;
-	os_module.spawn(&name, args)?;
-	reply!(ctx, "Process successfully spawned!");
+	let pid = os_module.spawn(&name, args)?;
+	reply!(ctx, "Process successfully spawned with pid {pid}!");
 	Ok(())
 }
 

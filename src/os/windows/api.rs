@@ -14,8 +14,11 @@ mod types {
 	pub type HMODULE = isize;
 	pub type PVOID = *mut std::ffi::c_void;
 	pub type PWSTR = *mut u16;
+	pub type PCWSTR = *const u16;
 	pub type BOOL = bool;
 	pub type PROCESSINFOCLASS = i32;
+	pub type STARTUPINFOW_FLAGS = u32;
+	pub type PROCESS_CREATION_FLAGS = u32;
 }
 
 mod constants {
@@ -70,6 +73,43 @@ mod structs {
 		pub uniqueProcessId: ULONG_PTR,
 		pub inheritedFromUniqueProcessId: ULONG_PTR,
 	}
+
+	#[repr(C)]
+	pub struct STARTUPINFOW {
+		pub cb: u32,
+		pub lpReserved: PWSTR,
+		pub lpDesktop: PWSTR,
+		pub lpTitle: PWSTR,
+		pub dwX: u32,
+		pub dwY: u32,
+		pub dwXSize: u32,
+		pub dwYSize: u32,
+		pub dwXCountChars: u32,
+		pub dwYCountChars: u32,
+		pub dwFillAttribute: u32,
+		pub dwFlags: STARTUPINFOW_FLAGS,
+		pub wShowWindow: u16,
+		pub cbReserved2: u16,
+		pub lpReserved2: *mut u8,
+		pub hStdInput: HANDLE,
+		pub hStdOutput: HANDLE,
+		pub hStdError: HANDLE,
+	}
+
+	#[repr(C)]
+	pub struct PROCESS_INFORMATION {
+		pub hProcess: HANDLE,
+		pub hThread: HANDLE,
+		pub dwProcessId: u32,
+		pub dwThreadId: u32,
+	}
+
+	#[repr(C)]
+	pub struct SECURITY_ATTRIBUTES {
+		pub nLength: u32,
+		pub lpSecurityDescriptor: PVOID,
+		pub bInheritHandle: BOOL,
+	}
 }
 
 mod prototypes {
@@ -89,6 +129,13 @@ mod prototypes {
 			processInformationLength: ULONG, returnLength: PULONG,
 		) -> NTSTATUS;
 		pub fn CloseHandle(hObject: HANDLE) -> BOOL;
+		pub fn CreateProcessW(
+			lpapplicationname: PCWSTR, lpcommandline: PWSTR, lpprocessattributes: *const SECURITY_ATTRIBUTES,
+			lpthreadattributes: *const SECURITY_ATTRIBUTES, binherithandles: BOOL,
+			dwcreationflags: PROCESS_CREATION_FLAGS, lpenvironment: *const std::ffi::c_void,
+			lpcurrentdirectory: PCWSTR, lpstartupinfo: *const STARTUPINFOW,
+			lpprocessinformation: *mut PROCESS_INFORMATION,
+		) -> BOOL;
 	}
 }
 

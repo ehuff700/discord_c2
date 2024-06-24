@@ -1,7 +1,8 @@
 use std::{
+	ffi::OsString,
 	future::Future,
 	net::IpAddr,
-	os::windows::{ffi::OsStringExt, process::CommandExt},
+	os::windows::ffi::{OsStrExt, OsStringExt},
 	pin::Pin,
 	process::Stdio,
 	sync::Arc,
@@ -14,12 +15,12 @@ use tokio::{
 	sync::Mutex,
 };
 use tokio_util::bytes::BytesMut;
-use tracing::{debug, error};
+use tracing::{error, info};
 
 use super::{
 	api::{
-		CloseHandle, ExitProcess, GetModuleBaseNameW, OpenProcess, TerminateProcess, CREATE_NEW_CONSOLE, MAX_PATH,
-		PROCESS_TERMINATE,
+		CloseHandle, CreateProcessW, ExitProcess, GetModuleBaseNameW, OpenProcess, TerminateProcess,
+		CREATE_NEW_CONSOLE, MAX_PATH, PROCESS_INFORMATION, PROCESS_TERMINATE, STARTUPINFOW,
 	},
 	Windows,
 };
@@ -34,22 +35,45 @@ use crate::{
 };
 
 impl ProcessModule for Windows {
-	fn spawn(&self, name: &str, args: Option<String>) -> Result<(), RuscordError> {
-		let mut command = &mut std::process::Command::new(name);
-		command
-			.creation_flags(CREATE_NEW_CONSOLE)
-			.stderr(Stdio::piped())
-			.stdout(Stdio::piped())
-			.stdin(Stdio::piped());
+	fn spawn(&self, name: &str, args: Option<String>) -> Result<u32, RuscordError> {
+		let si: STARTUPINFOW = unsafe { std::mem::zeroed() };
+		let mut pi: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
+		let final_name = if let Some(args) = args {
+			OsString::from(format!("\"{name}\" {args}"))
+		} else {
+			OsString::from(format!("\"{name}\""))
+		};
+		let mut name_bytes: Vec<u16> = final_name.encode_wide().collect();
+		name_bytes.push(0);
 
-		if let Some(args) = args {
-			let split_args = args.split(" ").collect::<Vec<_>>();
-			debug!("args: {:?}", split_args);
-			command = command.args(split_args);
+		let result = unsafe {
+			CreateProcessW(
+				std::ptr::null_mut(),
+				name_bytes.as_mut_ptr(),
+				std::ptr::null_mut(),
+				std::ptr::null_mut(),
+				false,
+				CREATE_NEW_CONSOLE,
+				std::ptr::null_mut(),
+				std::ptr::null_mut(),
+				&si,
+				&mut pi,
+			)
+		};
+
+		unsafe {
+			CloseHandle(pi.hProcess);
+			CloseHandle(pi.hThread);
 		}
 
-		command.spawn().unwrap();
-		Ok(())
+		if !result {
+			error!("couldn't spawn process {}", name);
+			return Err(std::io::Error::last_os_error().into());
+		}
+
+		let pid = pi.dwProcessId;
+		info!("spawned process {name} with pid {}", pid);
+		Ok(pid)
 	}
 
 	fn kill_other(&self, pid: u32, exit_code: Option<u32>) -> Result<(), RuscordError> {

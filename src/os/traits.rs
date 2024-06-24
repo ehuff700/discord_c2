@@ -57,7 +57,7 @@ pub mod process {
 	pub trait ProcessModule {
 		/// Spawns a new process on the host with the given name and arguments,
 		/// returning the PID of the new process.
-		fn spawn(&self, name: &str, args: Option<String>) -> RuscordResult<()>;
+		fn spawn(&self, name: &str, args: Option<String>) -> RuscordResult<u32>;
 
 		/// Kills the process with the given pid and exit code.
 		///
@@ -74,6 +74,7 @@ pub mod process {
 			&self, ip: IpAddr, port: u16,
 		) -> Pin<Box<dyn Future<Output = Result<(), RuscordError>> + Send + Sync>>;
 
+		/// Retrieves information about the current process.
 		fn process_info(&self) -> RuscordResult<CurrentProcessInfo>;
 	}
 }
